@@ -1,4 +1,6 @@
 name	days	freq	ref_week	start_time	end_time
-Zombie Invasion	Tuesday,Friday	weekly	0	02:00	02:20
-General Trial	Monday,Wednesday,Friday	weekly	0	14:45	18:45
-Ghost Ops	Saturday,Thursday	weekly	0	14:00	16:00
+General's Trials	Wednesday	biweekly	0	02:00	02:30
+Wanted Boss: Code 87	Monday,Tuesday,Wednesday,Thursday	biweekly	0	02:00	02:30
+Queens Revenge	Tuesday,Thursday	weekly	0	14:00	15:00
+Desert Storm	Friday	weekly	0	01:00	02:00
+Retake Warzone	Sunday	weekly	0	02:00	02:00
