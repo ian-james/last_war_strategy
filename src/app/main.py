@@ -34,7 +34,7 @@ with st.sidebar:
     
     # 1. Timezone Selection with NA Support
     tz_options = [
-        "Select Timezone (N/A)", "UTC", "US/Eastern", "US/Central", 
+        "Select Timezone (N/A)", "America/Halifax", "UTC", "US/Eastern", "US/Central", 
         "US/Mountain", "US/Pacific", "US/Alaska", "US/Hawaii",
         "Canada/Eastern", "Canada/Pacific"
     ]
