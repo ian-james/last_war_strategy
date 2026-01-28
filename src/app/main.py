@@ -24,8 +24,19 @@ def is_event_in_window(event_row, window_start_utc):
     if window_start_utc.format('dddd') not in days: return False
     if event_row['freq'] == 'biweekly':
         if (window_start_utc.week_of_year % 2) != (int(event_row['ref_week']) % 2): return False
-    win_start, win_end = window_start_utc.format('HH:mm'), window_start_utc.add(hours=4).format('HH:mm')
-    return str(event_row['start_time']) < win_end and str(event_row['end_time']) > win_start
+
+    start_time = str(event_row['start_time'])
+    end_time = str(event_row['end_time'])
+    win_start = window_start_utc.format('HH:mm')
+    win_end = window_start_utc.add(hours=4).format('HH:mm')
+
+    # Handle all-day events or events that wrap around midnight (end_time < start_time)
+    if end_time < start_time:
+        # Event spans midnight - check if window overlaps with either end of day or start of day
+        return start_time < win_end or end_time > win_start or win_start >= start_time or win_end <= end_time
+
+    # Normal event within same day
+    return start_time < win_end and end_time > win_start
 
 # --- TIME LOGIC ---
 st.sidebar.title("🛡️ Command Center")
@@ -285,29 +296,42 @@ elif page == "Special Events Manager":
         name = c1.text_input("Event Name", value=edit['name'] if edit else "")
         days = c2.multiselect("Days Active", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], default=edit['days'].split(',') if edit else [])
         freq = c3.selectbox("Frequency", ["weekly", "biweekly"], index=0 if not edit else (0 if edit['freq']=='weekly' else 1))
-        
+
         current_parity = now_utc.week_of_year % 2
         c4, c5, c6 = st.columns(3)
         starts_this_week = c4.selectbox("Starts this week?", ["Yes", "No"], index=0 if not edit or (int(edit['ref_week'])%2 == current_parity) else 1) if freq == "biweekly" else "Yes"
-        
+
+        # Check if event is all-day (02:00 UTC to 01:59 UTC)
+        is_all_day_default = False
         init_s, init_e = "12:00", "14:00"
         if edit:
             try:
+                if edit['start_time'] == "02:00" and edit['end_time'] == "01:59":
+                    is_all_day_default = True
                 sh, sm = map(int, edit['start_time'].split(':'))
                 eh, em = map(int, edit['end_time'].split(':'))
                 init_s = now_utc.at(sh, sm).in_timezone(user_tz).format("HH:mm")
                 init_e = now_utc.at(eh, em).in_timezone(user_tz).format("HH:mm")
             except: pass
 
-        s_t = c5.text_input(f"Start Time ({user_tz})", value=init_s)
-        e_t = c6.text_input(f"End Time ({user_tz})", value=init_e)
+        all_day = c4.checkbox("All Day Event", value=is_all_day_default, help="Event runs for the full game day (02:00 UTC to 01:59 UTC)")
+
+        if all_day:
+            st.info("ℹ️ All-day event will run from 02:00 UTC to 01:59 UTC (full game day cycle)")
+            s_t, e_t = "02:00", "01:59"
+        else:
+            s_t = c5.text_input(f"Start Time ({user_tz})", value=init_s, disabled=all_day)
+            e_t = c6.text_input(f"End Time ({user_tz})", value=init_e, disabled=all_day)
 
         if st.form_submit_button("💾 Save to File"):
             if name and days:
                 final_ref = (current_parity if starts_this_week == "Yes" else 1 - current_parity) if freq == "biweekly" else 0
-                dummy = pendulum.today(user_tz)
-                s_utc = pendulum.parse(f"{dummy.format('YYYY-MM-DD')} {s_t}").set(tz=user_tz).in_timezone('UTC').format('HH:mm')
-                e_utc = pendulum.parse(f"{dummy.format('YYYY-MM-DD')} {e_t}").set(tz=user_tz).in_timezone('UTC').format('HH:mm')
+                if all_day:
+                    s_utc, e_utc = "02:00", "01:59"
+                else:
+                    dummy = pendulum.today(user_tz)
+                    s_utc = pendulum.parse(f"{dummy.format('YYYY-MM-DD')} {s_t}").set(tz=user_tz).in_timezone('UTC').format('HH:mm')
+                    e_utc = pendulum.parse(f"{dummy.format('YYYY-MM-DD')} {e_t}").set(tz=user_tz).in_timezone('UTC').format('HH:mm')
                 new_row = pd.DataFrame([{"name": name, "days": ",".join(days), "freq": freq, "ref_week": final_ref, "start_time": s_utc, "end_time": e_utc}])
                 specials_df = pd.concat([specials_df[specials_df['name'] != name], new_row], ignore_index=True)
                 specials_df.to_csv(SPECIAL_FILE, sep="\t", index=False)
@@ -317,16 +341,24 @@ elif page == "Special Events Manager":
     st.divider()
     st.subheader(f"📋 Configured Events ({len(specials_df)})")
     for idx, row in specials_df.iterrows():
-        try:
-            sh, sm = map(int, str(row['start_time']).split(':'))
-            eh, em = map(int, str(row['end_time']).split(':'))
-            l_s, l_e = now_utc.at(sh, sm).in_timezone(user_tz).format(fmt), now_utc.at(eh, em).in_timezone(user_tz).format(fmt)
-        except: l_s, l_e = "N/A", "N/A"
-        
+        # Check if all-day event
+        is_all_day = (str(row['start_time']) == "02:00" and str(row['end_time']) == "01:59")
+
+        if is_all_day:
+            time_display = "All Day"
+        else:
+            try:
+                sh, sm = map(int, str(row['start_time']).split(':'))
+                eh, em = map(int, str(row['end_time']).split(':'))
+                l_s, l_e = now_utc.at(sh, sm).in_timezone(user_tz).format(fmt), now_utc.at(eh, em).in_timezone(user_tz).format(fmt)
+                time_display = f"{l_s}-{l_e}"
+            except:
+                time_display = "N/A"
+
         with st.container(border=True):
             cols = st.columns([3, 4, 1, 1])
             cols[0].write(f"**{row['name']}**")
             status = "Active" if (row['freq'] == 'weekly' or (int(row['ref_week']) % 2 == current_parity)) else "Inactive"
-            cols[1].write(f"🕒 {l_s}-{l_e} | 📅 {row['days']} | {row['freq']} ({status})")
+            cols[1].write(f"🕒 {time_display} | 📅 {row['days']} | {row['freq']} ({status})")
             if cols[2].button("📝", key=f"ed_{idx}"): st.session_state.edit_event = row.to_dict(); st.rerun()
             if cols[3].button("🗑️", key=f"dl_{idx}"): specials_df.drop(idx).to_csv(SPECIAL_FILE, sep="\t", index=False); st.rerun()
