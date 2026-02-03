@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pendulum
 import os
+import re
 
 # --- SETUP ---
 st.set_page_config(page_title="Last Standing Tactician", layout="wide", page_icon="🛡️")
@@ -16,6 +17,11 @@ RESTORE_TEMPLATES_FILE = "data/restore_daily_task_templates.csv"
 if not os.path.exists("data"): os.makedirs("data")
 
 # --- DATA HELPERS ---
+def word_in_text(keyword, text):
+    """Check if keyword appears as a whole word in text (case-insensitive)"""
+    pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+    return bool(re.search(pattern, text.lower()))
+
 def get_game_data():
     """Load and merge Arms Race and VS Duel schedules"""
     # Try loading from separate files first
@@ -195,13 +201,25 @@ else:
 df = get_game_data()
 specials_df = get_special_events()
 cleanup_expired_tasks()
-page = st.sidebar.selectbox("Navigate", ["Strategic Dashboard", "Arms Race Scheduler", "Special Events Manager", "Daily Tasks Manager"])
+page = st.sidebar.selectbox("Navigate", ["Strategic Dashboard", "Arms Race Scheduler", "VS Duel Manager", "Special Events Manager", "Daily Tasks Manager"])
 
 # ==========================================
 # PAGE 1: STRATEGIC DASHBOARD
 # ==========================================
 if page == "Strategic Dashboard":
-    st.title(f"🛡️ {vs_day} Tactical Overview")
+    # Debug toggle
+    if 'show_debug' not in st.session_state:
+        st.session_state.show_debug = False
+
+    col_title, col_debug = st.columns([4, 1])
+    with col_title:
+        st.title(f"🛡️ {vs_day} Tactical Overview")
+    with col_debug:
+        if st.button("🐛 Debug" if not st.session_state.show_debug else "✅ Debug",
+                     use_container_width=True,
+                     type="secondary" if not st.session_state.show_debug else "primary"):
+            st.session_state.show_debug = not st.session_state.show_debug
+            st.rerun()
 
     # 1. TIMERS
     reset_time = now_utc.start_of('day').add(hours=2)
@@ -223,11 +241,11 @@ if page == "Strategic Dashboard":
 
     # 3. OVERLAP MAPPING
     OVERLAP_MAP = {
-        "Base": ["Building", "Construction", "Speedup"],
-        "Tech": ["Research", "Speedup"],
-        "Hero": ["Hero", "EXP", "Shard", "Recruitment"],
-        "Unit": ["Train", "Soldier", "Speedup", "Unit"],
-        "Drone": ["Drone", "Component", "Stamina"],
+        "Base": ["Building Power", "Construction Speedup", "Building", "Construction"],
+        "Tech": ["Tech Power", "Research Speedup", "Research"],
+        "Hero": ["Hero Recruitment", "Hero EXP", "Hero Shard", "Hero", "Recruitment"],
+        "Unit": ["Train T8 Unit", "Training Speedup", "Training", "Train", "Unit"],
+        "Drone": ["Drone Data Point", "Drone Component", "Drone Part", "Stamina", "Drone"],
         "All-Rounder": ["Hero", "Building", "Research", "Train", "Construction", "Drone"]
     }
 
@@ -266,12 +284,12 @@ if page == "Strategic Dashboard":
 
                 overlapping_skills = []
                 for _, vs_row in b_vs.iterrows():
-                    vs_event = str(vs_row['Event']).lower()
-                    vs_task = str(vs_row['Task']).lower()
+                    vs_event = str(vs_row['Event'])
+                    vs_task = str(vs_row['Task'])
 
-                    if any(kw.lower() in vs_event or kw.lower() in vs_task for kw in keywords) or \
-                       (any(x in ar_full_text for x in ["building", "construction"]) and
-                        any(x in vs_event or x in vs_task for x in ["building", "construction"])):
+                    if any(word_in_text(kw, vs_event) or word_in_text(kw, vs_task) for kw in keywords) or \
+                       (any(word_in_text(x, ar_full_text) for x in ["building", "construction"]) and
+                        any(word_in_text(x, vs_event) or word_in_text(x, vs_task) for x in ["building", "construction"])):
                         overlapping_skills.append(str(vs_row['Event']))
 
                 if overlapping_skills:
@@ -436,7 +454,8 @@ if page == "Strategic Dashboard":
     st.subheader("📅 24-Hour Optimization Plan")
 
     # Debug info to verify calculations
-    with st.expander("🔧 Debug Info - Verify Time Calculations", expanded=False):
+    if st.session_state.show_debug:
+        st.subheader("🔧 Debug Info - Time Calculations")
         st.write("### Current Time Info")
         st.write(f"**Current UTC Time:** {now_utc.format('YYYY-MM-DD HH:mm:ss ZZ')}")
         st.write(f"**Current Local Time:** {now_local.format('YYYY-MM-DD HH:mm:ss ZZ')}")
@@ -518,12 +537,12 @@ if page == "Strategic Dashboard":
 
                 found_match = False
                 for _, vs_row in first_row_vs.iterrows():
-                    vs_event = str(vs_row['Event']).lower()
-                    vs_task = str(vs_row['Task']).lower()
+                    vs_event = str(vs_row['Event'])
+                    vs_task = str(vs_row['Task'])
 
-                    # Check both Event and Task
-                    matching_kw_event = [kw for kw in keywords if kw.lower() in vs_event]
-                    matching_kw_task = [kw for kw in keywords if kw.lower() in vs_task]
+                    # Check both Event and Task (whole word matching)
+                    matching_kw_event = [kw for kw in keywords if word_in_text(kw, vs_event)]
+                    matching_kw_task = [kw for kw in keywords if word_in_text(kw, vs_task)]
 
                     if matching_kw_event:
                         st.success(f"✅ MATCH found! VS Event '{vs_row['Event']}' contains keyword(s): {matching_kw_event}")
@@ -610,10 +629,10 @@ if page == "Strategic Dashboard":
                     'i': i
                 })
 
-                # Check if keywords match in either VS Event or Task
-                if any(kw.lower() in vs_event or kw.lower() in vs_task for kw in keywords) or \
-                   (any(x in ar_full_text for x in ["building", "construction"]) and \
-                    any(x in vs_event or x in vs_task for x in ["building", "construction"])):
+                # Check if keywords match in either VS Event or Task (whole word matching)
+                if any(word_in_text(kw, vs_event) or word_in_text(kw, vs_task) for kw in keywords) or \
+                   (any(word_in_text(x, ar_full_text) for x in ["building", "construction"]) and \
+                    any(word_in_text(x, vs_event) or word_in_text(x, vs_task) for x in ["building", "construction"])):
                     status = "⭐ 2×"
                     break
 
@@ -627,7 +646,8 @@ if page == "Strategic Dashboard":
     plan_df = pd.DataFrame(plan_data)
 
     # Debug: Show what's in the plan
-    with st.expander("🐛 2× Detection Debug", expanded=False):
+    if st.session_state.show_debug:
+        st.subheader("🐛 2× Detection Debug")
         st.write(f"**Total rows:** {len(plan_df)}")
         st.write(f"**Rows with 2×:** {len(plan_df[plan_df['Optimization'] == '⭐ 2×'])}")
         st.write(f"**Rows with Tasks Ending:** {len(plan_df[plan_df['Tasks Ending'] == True])}")
@@ -700,7 +720,7 @@ if page == "Strategic Dashboard":
             <div style="width: 120px; flex-shrink: 0;">Arms Race</div>
             <div style="flex: 1; min-width: 100px;">Special Events</div>
             <div style="flex: 1; min-width: 100px;">Daily Tasks</div>
-            <div style="width: 35px; flex-shrink: 0;">Value</div>
+            <div style="width: 50px; flex-shrink: 0;">Value</div>
         </div>
         """
         st.markdown(header_html, unsafe_allow_html=True)
@@ -748,7 +768,7 @@ if page == "Strategic Dashboard":
                 <div style="width: 120px; flex-shrink: 0; font-size: 0.9em;">{row_data["Arms Race"]}</div>
                 <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{special_events_content}</div>
                 <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{daily_tasks_content}</div>
-                <div style="width: 35px; flex-shrink: 0; font-size: 0.9em;">{row_data["Optimization"]}</div>
+                <div style="width: 50px; flex-shrink: 0; font-size: 0.9em;">{row_data["Optimization"]}</div>
             </div>
             """
             st.markdown(row_html, unsafe_allow_html=True)
@@ -897,8 +917,194 @@ elif page == "Arms Race Scheduler":
     else:
         st.info("No entries found.")
 
+    st.divider()
+    st.subheader("🔧 Bulk Edit Tasks")
+
+    with st.expander("Find and Replace Tasks/Points", expanded=False):
+        # Load current arms race data
+        if os.path.exists(ARMS_RACE_FILE):
+            arms_df = pd.read_csv(ARMS_RACE_FILE, sep="\t")
+
+            # Get unique event names
+            unique_events = sorted(arms_df['Event'].unique().tolist())
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("### Find")
+                find_event = st.selectbox("Select Event to Modify", unique_events, key="find_event")
+
+                # Show current occurrences with tasks
+                matching_rows = arms_df[arms_df['Event'] == find_event]
+                st.write(f"**Found {len(matching_rows)} task(s) across {len(matching_rows.groupby(['Day', 'Slot']))} slot(s):**")
+
+                # Display with all details
+                display_df = matching_rows[['Day', 'Slot', 'Task', 'Points']].copy()
+                display_df = display_df.sort_values(['Day', 'Slot'])
+                st.dataframe(display_df, hide_index=True, use_container_width=True)
+
+            with col2:
+                st.write("### Replace With")
+                new_event_name = st.text_input("New Event Name (leave blank to keep)", value="", key="new_event")
+                new_task_name = st.text_input("New Task Name (leave blank to keep)", value="", key="new_task")
+                new_points = st.text_input("New Points (leave blank to keep)", value="", key="new_points")
+
+                st.write("### Apply To")
+                apply_scope = st.radio(
+                    "Scope",
+                    ["All occurrences", "Specific day only"],
+                    key="apply_scope"
+                )
+
+                if apply_scope == "Specific day only":
+                    days_with_event = sorted(matching_rows['Day'].unique().tolist())
+                    specific_day = st.selectbox("Select Day", days_with_event, key="specific_day")
+
+            if st.button("🔄 Apply Changes", type="primary", use_container_width=True):
+                changes_made = False
+
+                # Create a copy to modify
+                updated_df = arms_df.copy()
+
+                # Determine which rows to update
+                if apply_scope == "All occurrences":
+                    mask = updated_df['Event'] == find_event
+                else:
+                    mask = (updated_df['Event'] == find_event) & (updated_df['Day'] == specific_day)
+
+                # Apply changes
+                if new_event_name:
+                    updated_df.loc[mask, 'Event'] = new_event_name
+                    changes_made = True
+
+                if new_task_name:
+                    updated_df.loc[mask, 'Task'] = new_task_name
+                    changes_made = True
+
+                if new_points:
+                    updated_df.loc[mask, 'Points'] = new_points
+                    changes_made = True
+
+                if changes_made:
+                    # Save back to file
+                    updated_df.to_csv(ARMS_RACE_FILE, sep="\t", index=False)
+
+                    rows_affected = mask.sum()
+                    st.success(f"✅ Updated {rows_affected} row(s) successfully!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ No changes specified. Enter at least one new value.")
+
+        else:
+            st.info("No Arms Race data found. Configure schedule first.")
+
 # ==========================================
-# PAGE 3: SPECIAL EVENTS MANAGER
+# PAGE 3: VS DUEL MANAGER
+# ==========================================
+elif page == "VS Duel Manager":
+    st.title("⚔️ VS Duel Manager")
+
+    # Display all VS events
+    st.subheader("📋 Current VS Duel Schedule")
+
+    if os.path.exists(VS_DUEL_FILE):
+        vs_df = pd.read_csv(VS_DUEL_FILE, sep="\t")
+
+        # Group by day and show all tasks per day
+        days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        for day in days_order:
+            day_events = vs_df[vs_df['Day'] == day]
+            if not day_events.empty:
+                with st.expander(f"**{day}** - {day_events.iloc[0]['Event']}", expanded=False):
+                    st.dataframe(day_events[['Event', 'Task', 'Points']], hide_index=True, use_container_width=True)
+    else:
+        st.warning("VS Duel schedule file not found.")
+
+    st.divider()
+    st.subheader("🔧 Bulk Edit VS Tasks")
+
+    with st.expander("Find and Replace Tasks/Points", expanded=False):
+        if os.path.exists(VS_DUEL_FILE):
+            vs_df = pd.read_csv(VS_DUEL_FILE, sep="\t")
+
+            # Get unique event names
+            unique_events = sorted(vs_df['Event'].unique().tolist())
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("### Find")
+                find_event = st.selectbox("Select Event to Modify", unique_events, key="vs_find_event")
+
+                # Show current occurrences with tasks
+                matching_rows = vs_df[vs_df['Event'] == find_event]
+                st.write(f"**Found {len(matching_rows)} task(s) for {find_event}:**")
+
+                # Display with all details
+                display_df = matching_rows[['Day', 'Task', 'Points']].copy()
+                display_df = display_df.sort_values(['Day'])
+                st.dataframe(display_df, hide_index=True, use_container_width=True)
+
+            with col2:
+                st.write("### Replace With")
+                new_event_name = st.text_input("New Event Name (leave blank to keep)", value="", key="vs_new_event")
+                new_task_name = st.text_input("New Task Name (leave blank to keep)", value="", key="vs_new_task")
+                new_points = st.text_input("New Points (leave blank to keep)", value="", key="vs_new_points")
+
+                st.write("### Apply To")
+                apply_scope = st.radio(
+                    "Scope",
+                    ["All occurrences", "Specific day only", "Specific task only"],
+                    key="vs_apply_scope"
+                )
+
+                if apply_scope == "Specific day only":
+                    days_with_event = sorted(matching_rows['Day'].unique().tolist())
+                    specific_day = st.selectbox("Select Day", days_with_event, key="vs_specific_day")
+                elif apply_scope == "Specific task only":
+                    tasks_list = matching_rows['Task'].unique().tolist()
+                    specific_task = st.selectbox("Select Task", tasks_list, key="vs_specific_task")
+
+            if st.button("🔄 Apply Changes", type="primary", use_container_width=True, key="vs_apply"):
+                changes_made = False
+
+                # Create a copy to modify
+                updated_df = vs_df.copy()
+
+                # Determine which rows to update
+                if apply_scope == "All occurrences":
+                    mask = updated_df['Event'] == find_event
+                elif apply_scope == "Specific day only":
+                    mask = (updated_df['Event'] == find_event) & (updated_df['Day'] == specific_day)
+                else:  # Specific task only
+                    mask = (updated_df['Event'] == find_event) & (updated_df['Task'] == specific_task)
+
+                # Apply changes
+                if new_event_name:
+                    updated_df.loc[mask, 'Event'] = new_event_name
+                    changes_made = True
+
+                if new_task_name:
+                    updated_df.loc[mask, 'Task'] = new_task_name
+                    changes_made = True
+
+                if new_points:
+                    updated_df.loc[mask, 'Points'] = new_points
+                    changes_made = True
+
+                if changes_made:
+                    # Save back to file
+                    updated_df.to_csv(VS_DUEL_FILE, sep="\t", index=False)
+
+                    rows_affected = mask.sum()
+                    st.success(f"✅ Updated {rows_affected} row(s) successfully!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ No changes specified. Enter at least one new value.")
+
+        else:
+            st.info("No VS Duel data found.")
+
+# ==========================================
+# PAGE 4: SPECIAL EVENTS MANAGER
 # ==========================================
 elif page == "Special Events Manager":
     st.title("📅 Special Events Manager")

@@ -1,11 +1,4 @@
 Day	Event	Task	Points	Type	Slot
-Friday	Total Mobilization	Complete Radar Task	27000	VS	0
-Friday	Total Mobilization	Research Speedup	135	VS	0
-Friday	Total Mobilization	Tech Power	25.5	VS	0
-Friday	Total Mobilization	Construction Speedup	135	VS	0
-Friday	Total Mobilization	Building Power	25.5	VS	0
-Friday	Total Mobilization	Training Speedup	135	VS	0
-Friday	Total Mobilization	Train T8 Unit	225	VS	0
 Friday	Tech Research	Tech Power	1	Arms Race	1
 Friday	Tech Research	Research Speedup	10	Arms Race	1
 Friday	Drone Boost	Use Drone Data Point	1	Arms Race	2
@@ -18,14 +11,6 @@ Friday	Base Building	Building Power	1	Arms Race	5
 Friday	Base Building	Construction Speedup	10	Arms Race	5
 Friday	Unit Progression	Train T8 Unit	25	Arms Race	6
 Friday	Unit Progression	Training Speedup	10	Arms Race	6
-Monday	Radar Training	Complete Radar Task	27000	VS	0
-Monday	Radar Training	Use Stamina	333	VS	0
-Monday	Radar Training	Hero EXP	2.2	VS	0
-Monday	Radar Training	Use Drone Data Point	6.6	VS	0
-Monday	Radar Training	Use Drone Part	5500	VS	0
-Monday	Radar Training	Radar Task: Gather 100 Food/Iron	44	VS	0
-Monday	Radar Training	Radar Task: Gather 60 Coins	44	VS	0
-Monday	Radar Training	Radar Task: Open Chip Chest	2475	VS	0
 Monday	Base Building	Building Power	1	Arms Race	1
 Monday	Base Building	Construction Speedup	10	Arms Race	1
 Monday	Unit Progression	Train T8 Unit	25	Arms Race	2
@@ -38,13 +23,6 @@ Monday	Drone Boost	Use Drone Data Point	1	Arms Race	5
 Monday	Drone Boost	Use Stamina	100	Arms Race	5
 Monday	Hero Advancement	Hero Recruitment	400	Arms Race	6
 Monday	Hero Advancement	Hero EXP	2	Arms Race	6
-Saturday	Enemy Buster	Dispatch UR Trade Truck	240000	VS	0
-Saturday	Enemy Buster	UR Secret Task	180000	VS	0
-Saturday	Enemy Buster	Construction Speedup	135	VS	0
-Saturday	Enemy Buster	Research Speedup	135	VS	0
-Saturday	Enemy Buster	Training Speedup	135	VS	0
-Saturday	Enemy Buster	Enemy Buster: Kill 100 Rival Units (T8 level)	112.5	VS	0
-Saturday	Enemy Buster	Enemy Buster: Kill General T8 Unit (1)	30	VS	0
 Saturday	Unit Progression	Train T8 Unit	25	Arms Race	1
 Saturday	Unit Progression	Training Speedup	10	Arms Race	1
 Saturday	Tech Research	Tech Power	1	Arms Race	2
@@ -57,7 +35,6 @@ Saturday	Hero Advancement	Hero Recruitment	400	Arms Race	5
 Saturday	Hero Advancement	Hero EXP	2	Arms Race	5
 Saturday	Base Building	Building Power	1	Arms Race	6
 Saturday	Base Building	Construction Speedup	10	Arms Race	6
-Sunday	Rest Day	No VS Rewards Today	0	VS	0
 Sunday	Drone Boost	Use Drone Data Point	1	Arms Race	1
 Sunday	Drone Boost	Use Stamina	100	Arms Race	1
 Sunday	Hero Advancement	Hero Recruitment	400	Arms Race	2
@@ -70,12 +47,6 @@ Sunday	Unit Progression	Train T8 Unit	25	Arms Race	5
 Sunday	Unit Progression	Training Speedup	10	Arms Race	5
 Sunday	Tech Research	Tech Power	1	Arms Race	6
 Sunday	Tech Research	Research Speedup	10	Arms Race	6
-Thursday	Train Heroes	Hero Recruitment	4050	VS	0
-Thursday	Train Heroes	Hero EXP	2.2	VS	0
-Thursday	Train Heroes	Hero: Use 1 UR Hero Shard	22000	VS	0
-Thursday	Train Heroes	Hero: Use 1 SR Hero Shard	2200	VS	0
-Thursday	Train Heroes	Hero: Use 1 Skill Medal	22	VS	0
-Thursday	Train Heroes	Hero: Use 1 Exclusive Weapon Shard	22000	VS	0
 Thursday	Base Building	Building Power	1	Arms Race	1
 Thursday	Base Building	Construction Speedup	10	Arms Race	1
 Thursday	Unit Progression	Train T8 Unit	25	Arms Race	2
@@ -88,11 +59,6 @@ Thursday	Drone Boost	Use Drone Data Point	1	Arms Race	5
 Thursday	Drone Boost	Use Stamina	100	Arms Race	5
 Thursday	Hero Advancement	Hero Recruitment	400	Arms Race	6
 Thursday	Hero Advancement	Hero EXP	2	Arms Race	6
-Tuesday	Base Expansion	Construction Speedup	135	VS	0
-Tuesday	Base Expansion	Building Power	25.5	VS	0
-Tuesday	Base Expansion	Dispatch UR Trade Truck	240000	VS	0
-Tuesday	Base Expansion	UR Secret Task	180000	VS	0
-Tuesday	Base Expansion	Construction: Recruit Survivor (1)	3600	VS	0
 Tuesday	Unit Progression	Train T8 Unit	25	Arms Race	1
 Tuesday	Unit Progression	Training Speedup	10	Arms Race	1
 Tuesday	Tech Research	Tech Power	1	Arms Race	2
@@ -105,11 +71,6 @@ Tuesday	Hero Advancement	Hero Recruitment	400	Arms Race	5
 Tuesday	Hero Advancement	Hero EXP	2	Arms Race	5
 Tuesday	Base Building	Building Power	1	Arms Race	6
 Tuesday	Base Building	Construction Speedup	10	Arms Race	6
-Wednesday	Age of Science	Research Speedup	135	VS	0
-Wednesday	Age of Science	Tech Power	25.5	VS	0
-Wednesday	Age of Science	Research: Use 1 Valor Badge	660	VS	0
-Wednesday	Age of Science	Complete Radar Task	27000	VS	0
-Wednesday	Age of Science	Use Drone Component Chest	2420	VS	0
 Wednesday	Drone Boost	Use Drone Data Point	1	Arms Race	1
 Wednesday	Drone Boost	Use Stamina	100	Arms Race	1
 Wednesday	Hero Advancement	Hero Recruitment	400	Arms Race	2
@@ -122,3 +83,42 @@ Wednesday	Unit Progression	Train T8 Unit	25	Arms Race	5
 Wednesday	Unit Progression	Training Speedup	10	Arms Race	5
 Wednesday	Tech Research	Tech Power	1	Arms Race	6
 Wednesday	Tech Research	Research Speedup	10	Arms Race	6
+Friday	Total Mobilization	Complete Radar Task	27000	VS	0
+Friday	Total Mobilization	Research Speedup	135	VS	0
+Friday	Total Mobilization	Tech Power	25.5	VS	0
+Friday	Total Mobilization	Construction Speedup	135	VS	0
+Friday	Total Mobilization	Building Power	25.5	VS	0
+Friday	Total Mobilization	Training Speedup	135	VS	0
+Friday	Total Mobilization	Train T8 Unit	225	VS	0
+Monday	Radar Training	Complete Radar Task	27000	VS	0
+Monday	Radar Training	Use Stamina	333	VS	0
+Monday	Radar Training	Hero EXP	2.2	VS	0
+Monday	Radar Training	Use Drone Data Point	6.6	VS	0
+Monday	Radar Training	Use Drone Part	5500	VS	0
+Monday	Radar Training	Radar Task: Gather 100 Food/Iron	44	VS	0
+Monday	Radar Training	Radar Task: Gather 60 Coins	44	VS	0
+Monday	Radar Training	Radar Task: Open Chip Chest	2475	VS	0
+Saturday	Enemy Buster	Dispatch UR Trade Truck	240000	VS	0
+Saturday	Enemy Buster	UR Secret Task	180000	VS	0
+Saturday	Enemy Buster	Construction Speedup	135	VS	0
+Saturday	Enemy Buster	Research Speedup	135	VS	0
+Saturday	Enemy Buster	Training Speedup	135	VS	0
+Saturday	Enemy Buster	Enemy Buster: Kill 100 Rival Units (T8 level)	112.5	VS	0
+Saturday	Enemy Buster	Enemy Buster: Kill General T8 Unit (1)	30	VS	0
+Sunday	Rest Day	No VS Rewards Today	0	VS	0
+Thursday	Train Heroes	Hero Recruitment	4050	VS	0
+Thursday	Train Heroes	Hero EXP	2.2	VS	0
+Thursday	Train Heroes	Hero: Use 1 UR Hero Shard	22000	VS	0
+Thursday	Train Heroes	Hero: Use 1 SR Hero Shard	2200	VS	0
+Thursday	Train Heroes	Hero: Use 1 Skill Medal	22	VS	0
+Thursday	Train Heroes	Hero: Use 1 Exclusive Weapon Shard	22000	VS	0
+Tuesday	Base Expansion	Construction Speedup	135	VS	0
+Tuesday	Base Expansion	Building Power	25.5	VS	0
+Tuesday	Base Expansion	Dispatch UR Trade Truck	240000	VS	0
+Tuesday	Base Expansion	UR Secret Task	180000	VS	0
+Tuesday	Base Expansion	Construction: Recruit Survivor (1)	3600	VS	0
+Wednesday	Age of Science	Research Speedup	135	VS	0
+Wednesday	Age of Science	Tech Power	25.5	VS	0
+Wednesday	Age of Science	Research: Use 1 Valor Badge	660	VS	0
+Wednesday	Age of Science	Complete Radar Task	27000	VS	0
+Wednesday	Age of Science	Use Drone Component Chest	2420	VS	0
