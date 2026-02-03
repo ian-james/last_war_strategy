@@ -1,0 +1,25 @@
+version: '3.8'
+
+# Development-specific overrides
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  last-war-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for faster rebuilds
+    volumes:
+      # Enable hot reload by mounting source code
+      - ./src:/app/src:ro
+      - ./data:/app/data
+    environment:
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=auto
+      - STREAMLIT_LOGGER_LEVEL=debug
+    ports:
+      - "8501:8501"
+    command: >
+      sh -c "uv run streamlit run src/app/main.py
+      --server.runOnSave=true
+      --server.fileWatcherType=auto"

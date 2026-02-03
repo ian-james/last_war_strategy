@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  last-war-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: last-war-scheduler:latest
+    container_name: last_war_scheduler
+    ports:
+      - "${PORT:-8501}:8501"
+    volumes:
+      # Mount data directory to persist CSV files
+      - ./data:/app/data
+      # Optional: Mount source for development (uncomment for hot reload)
+      - ./src:/app/src
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_ENABLE_CORS=${STREAMLIT_SERVER_ENABLE_CORS:-false}
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=${STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION:-false}
+      - STREAMLIT_SERVER_HEADLESS=${STREAMLIT_SERVER_HEADLESS:-true}
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=${STREAMLIT_BROWSER_GATHER_USAGE_STATS:-false}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - last-war-network
+    labels:
+      - "com.last-war-scheduler.description=Last War Scheduler Application"
+      - "com.last-war-scheduler.version=0.1.0"
+
+networks:
+  last-war-network:
+    driver: bridge
