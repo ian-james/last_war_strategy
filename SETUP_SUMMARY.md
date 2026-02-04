@@ -166,8 +166,11 @@ make size            # Image size
 │                         │                               │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │            Mounted Volume: ./data                 │  │
-│  │  - last_standing_schedule.csv                     │  │
+│  │  - arms_race_schedule.csv                         │  │
+│  │  - vs_duel_schedule.csv                           │  │
 │  │  - special_events.csv                             │  │
+│  │  - daily_task_templates.csv                       │  │
+│  │  - active_daily_tasks.csv                         │  │
 │  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                          │
@@ -216,6 +219,16 @@ Data directory (`./data/`) is mounted as a Docker volume:
 - Backed up with `make backup`
 - Restored with `make restore`
 - Accessible from host system
+
+### Active Data Files
+| File | Purpose |
+|------|---------|
+| `arms_race_schedule.csv` | Arms Race rotation — 6 four-hour slots per day |
+| `vs_duel_schedule.csv` | VS Duel events — one per day |
+| `special_events.csv` | Recurring special events with timezone support |
+| `daily_task_templates.csv` | Task templates with duration per rarity level |
+| `active_daily_tasks.csv` | Tasks currently activated for today |
+| `restore_*.csv` | Backup restore snapshots |
 
 ## Security Considerations
 
@@ -313,6 +326,14 @@ docker inspect last_war_scheduler | jq '.[0].Mounts'
 See `DOCKER.md` Troubleshooting section for detailed solutions to common problems.
 
 ## Changelog
+
+### Version 0.2.0 (VS Mode & Daily Tasks)
+- Split Arms Race and VS Duel into separate schedules (`arms_race_schedule.csv`, `vs_duel_schedule.csv`)
+- Added Daily Tasks Manager with multi-rarity duration levels (N/R/SR/SSR/UR)
+- Added active task tracking (`active_daily_tasks.csv`)
+- Added All Day Events support
+- Added Strategic Dashboard with active task display
+- Added test suite: `test_active_slot.py`, `test_daily_tasks.py`, `test_slot_calculation.py`
 
 ### Version 0.1.0 (Initial Docker Setup)
 - Multi-stage Dockerfile implementation

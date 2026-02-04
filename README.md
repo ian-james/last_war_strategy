@@ -109,16 +109,28 @@ PORT=8080 make up
 last_war_scheduler/
 ├── src/
 │   └── app/
-│       └── main.py          # Main Streamlit application
-├── data/                     # Persistent data (CSV files)
-│   ├── last_standing_schedule.csv
-│   └── special_events.csv
-├── Dockerfile               # Multi-stage Docker build
-├── docker-compose.yml       # Container orchestration
-├── Makefile                 # Management commands
-├── pyproject.toml          # Python dependencies
-└── uv.lock                 # Locked dependencies
-
+│       └── main.py                  # Main Streamlit application
+├── data/                            # Persistent data (CSV files)
+│   ├── arms_race_schedule.csv       # Arms Race rotation (6 slots/day)
+│   ├── vs_duel_schedule.csv         # VS Duel daily events
+│   ├── special_events.csv           # Recurring special events
+│   ├── daily_task_templates.csv     # Task templates (N/R/SR/SSR/UR)
+│   ├── active_daily_tasks.csv       # Currently active tasks
+│   └── restore_*.csv                # Backup restore snapshots
+├── .devcontainer/
+│   └── devcontainer.json            # Dev container configuration
+├── Dockerfile                       # Multi-stage Docker build
+├── docker-compose.yml               # Container orchestration
+├── docker-compose.dev.yml           # Development overrides (hot reload)
+├── Makefile                         # Docker management commands
+├── pyproject.toml                   # Python dependencies
+├── .python-version                  # Python version pin
+├── uv.lock                          # Locked dependencies
+├── context.md                       # Project context notes
+├── debug_templates.py               # Template debugging utility
+├── test_active_slot.py              # Active slot calculation tests
+├── test_daily_tasks.py              # Daily task tests
+└── test_slot_calculation.py         # Time slot validation tests
 ```
 
 ## Development

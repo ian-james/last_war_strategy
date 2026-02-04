@@ -65,8 +65,12 @@ The Dockerfile uses a multi-stage build for optimization:
 ### Data Persistence
 
 Data is persisted in the `./data` directory:
-- `last_standing_schedule.csv` - Arms Race schedules
-- `special_events.csv` - Special event configurations
+- `arms_race_schedule.csv` - Arms Race rotation (6 slots per day)
+- `vs_duel_schedule.csv` - VS Duel daily events
+- `special_events.csv` - Recurring special event configurations
+- `daily_task_templates.csv` - Task templates with duration levels (N/R/SR/SSR/UR)
+- `active_daily_tasks.csv` - Currently active tasks
+- `restore_*.csv` - Backup restore snapshots
 - Mounted as volume for persistence across container restarts
 
 ## Environment Configuration
