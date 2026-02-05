@@ -806,13 +806,13 @@ if page == "Strategic Dashboard":
 
     with header_content_col:
         header_html = """
-        <div style="padding: 8px 5px; margin: 2px 0; display: flex; align-items: center; gap: 5px; font-weight: bold;">
-            <div style="width: 70px; flex-shrink: 0;">Day</div>
-            <div style="width: 100px; flex-shrink: 0;">Time</div>
-            <div style="width: 120px; flex-shrink: 0;">Arms Race</div>
-            <div style="flex: 1; min-width: 100px;">Special Events</div>
-            <div style="flex: 1; min-width: 100px;">Daily Tasks</div>
-            <div style="width: 50px; flex-shrink: 0;">Value</div>
+        <div style="padding: 14px 10px; margin: 2px 0; display: flex; align-items: center; gap: 25px; font-weight: bold; font-size: 1.1em;">
+            <div style="width: 80px; flex-shrink: 0;">Day</div>
+            <div style="width: 140px; flex-shrink: 0;">Time</div>
+            <div style="width: 140px; flex-shrink: 0;">Arms Race</div>
+            <div style="flex: 1; min-width: 80px;">Special Events</div>
+            <div style="flex: 1; min-width: 80px;">Daily Tasks</div>
+            <div style="width: 60px; flex-shrink: 0;">Value</div>
         </div>
         """
         st.markdown(header_html, unsafe_allow_html=True)
@@ -848,8 +848,8 @@ if page == "Strategic Dashboard":
 
         # Use HTML flexbox for all rows to ensure consistent alignment
         is_current = full_row.get('is_current', False)
-        now_badge = '<span style="background:#e53935; color:white; font-size:0.7em; font-weight:bold; padding:1px 4px; border-radius:3px; margin-left:2px;">◀ NOW</span>' if is_current else ''
-        border_left = "border-left: 3px solid #e53935;" if is_current else ""
+        now_badge = '<span style="background:#1976d2; color:white; font-size:0.8em; font-weight:bold; padding:2px 6px; border-radius:3px; margin-left:4px;">◀ NOW</span>' if is_current else ''
+        border_left = "border-left: 4px solid #1976d2;" if is_current else ""
         row_style = f"background-color: {bg_color}; color: {text_color}; {border_left}" if bg_color else f"background-color: transparent; color: inherit; {border_left}"
 
         # Put the row content and button on the same line
@@ -857,13 +857,13 @@ if page == "Strategic Dashboard":
 
         with content_col:
             row_html = f"""
-            <div style="{row_style} padding: 8px 5px; margin: 2px 0; border-radius: 4px; display: flex; align-items: center; gap: 5px;">
-                <div style="width: 70px; flex-shrink: 0; font-size: 0.9em;">{row_data["Day"]}</div>
-                <div style="width: 100px; flex-shrink: 0; font-size: 0.9em;">{row_data["Time"]}{now_badge}</div>
-                <div style="width: 120px; flex-shrink: 0; font-size: 0.9em;">{row_data["Arms Race"]}</div>
-                <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{special_events_content}</div>
-                <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{daily_tasks_content}</div>
-                <div style="width: 50px; flex-shrink: 0; font-size: 0.9em;">{row_data["Optimization"]}</div>
+            <div style="{row_style} padding: 14px 10px; margin: 2px 0; border-radius: 4px; display: flex; align-items: center; gap: 25px;">
+                <div style="width: 80px; flex-shrink: 0; font-size: 1.05em;">{row_data["Day"]}</div>
+                <div style="width: 140px; flex-shrink: 0; font-size: 1.05em;">{row_data["Time"]}{now_badge}</div>
+                <div style="width: 140px; flex-shrink: 0; font-size: 1.05em;">{row_data["Arms Race"]}</div>
+                <div style="flex: 1; min-width: 80px; font-size: 1.0em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{special_events_content}</div>
+                <div style="flex: 1; min-width: 80px; font-size: 1.0em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{daily_tasks_content}</div>
+                <div style="width: 60px; flex-shrink: 0; font-size: 1.05em;">{row_data["Optimization"]}</div>
             </div>
             """
             st.markdown(row_html, unsafe_allow_html=True)
