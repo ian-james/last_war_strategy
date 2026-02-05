@@ -983,6 +983,10 @@ elif page == "Weekly 2× Calendar":
     else:
         today_game_day = now_server.format('dddd')
 
+    # Rotate so today is first, remaining days follow in order
+    today_idx = days_order.index(today_game_day)
+    days_order = days_order[today_idx:] + days_order[:today_idx]
+
     # Display calendar
     for day_idx, day in enumerate(days_order):
         # Get VS event for this day
