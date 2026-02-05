@@ -266,33 +266,22 @@ now_utc    = pendulum.now('UTC')
 now_server = pendulum.now(server_tz)          # game clock
 now_local  = now_utc.in_timezone(user_tz)
 
-# Game day resets at 22:00 server time
-if now_server.hour >= 22:
-    vs_day = now_server.add(days=1).format('dddd')
-    ar_day = now_server.add(days=1).format('dddd')
-else:
-    vs_day = now_server.format('dddd')
-    ar_day = now_server.format('dddd')
+# Game day resets at midnight server time (= 22:00 Halifax time)
+vs_day = now_server.format('dddd')
+ar_day = now_server.format('dddd')
 
 # Current slot based on server time
-# Slot boundaries: 22:00-02:00, 02:00-06:00, 06:00-10:00, 10:00-14:00, 14:00-18:00, 18:00-22:00
-current_slot = ((now_server.hour + 2) % 24 // 4) + 1
+# Server boundaries: 00:00-04:00, 04:00-08:00, ..., 20:00-00:00 (displays as 22:00-02:00, etc. in Halifax)
+current_slot = (now_server.hour // 4) + 1
 
-slot_start_hours = [22, 2, 6, 10, 14, 18]
+slot_start_hours = [0, 4, 8, 12, 16, 20]
 start_hour = slot_start_hours[current_slot - 1]
 
 # Start of the current 4-hour window in server time
-if start_hour == 22:
-    # Slot 1 starts at 22:00 today (wraps to next day at 00:00)
-    active_start = now_server.start_of('day').add(hours=22)
-else:
-    active_start = now_server.start_of('day').add(hours=start_hour)
+active_start = now_server.start_of('day').add(hours=start_hour)
 
-# Game day starts at 22:00 server time (used for full-day plan view)
-if now_server.hour >= 22:
-    game_day_start = now_server.start_of('day').add(hours=22)
-else:
-    game_day_start = now_server.subtract(days=1).start_of('day').add(hours=22)
+# Game day starts at midnight server time
+game_day_start = now_server.start_of('day')
 
 df = get_game_data()
 specials_df = get_special_events()
@@ -375,14 +364,11 @@ if page == "Strategic Dashboard":
     for i in range(48):
         scan_t = active_start.add(hours=i*4)
 
-        # Game day resets at 22:00 server time
-        if scan_t.hour >= 22:
-            s_day = scan_t.add(days=1).format('dddd')
-        else:
-            s_day = scan_t.format('dddd')
+        # Game day resets at midnight server time
+        s_day = scan_t.format('dddd')
 
-        # Calculate slot: Slot 1 is 22:00-02:00, Slot 2 is 02:00-06:00, etc.
-        slot_n = ((scan_t.hour + 2) % 24 // 4) + 1
+        # Calculate slot
+        slot_n = (scan_t.hour // 4) + 1
 
         b_ar = df[(df['Day'] == s_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == slot_n)]
         b_vs = df[(df['Day'] == s_day) & (df['Type'] == 'VS')]
@@ -582,27 +568,19 @@ if page == "Strategic Dashboard":
         st.write(f"**Server Hour:** {now_server.hour}")
 
         st.write("### Slot Calculation Step-by-Step (Using Server Time)")
-        st.write("**Slot boundaries (server):** Slot1=22-02, Slot2=02-06, Slot3=06-10, Slot4=10-14, Slot5=14-18, Slot6=18-22")
-        calc_step1 = now_server.hour + 2
-        calc_step2 = calc_step1 % 24
-        calc_step3 = calc_step2 // 4
-        calc_step4 = calc_step3 + 1
-        st.write(f"**Formula:** ((server_hour + 2) % 24 // 4) + 1")
-        st.write(f"**Step 1:** {now_server.hour} + 2 = {calc_step1}")
-        st.write(f"**Step 2:** {calc_step1} % 24 = {calc_step2}")
-        st.write(f"**Step 3:** {calc_step2} // 4 = {calc_step3}")
-        st.write(f"**Step 4:** {calc_step3} + 1 = {calc_step4}")
-        st.write(f"**Result: Slot {calc_step4} (global, same for all players)**")
+        st.write("**Slot boundaries (server):** Slot1=00-04, Slot2=04-08, Slot3=08-12, Slot4=12-16, Slot5=16-20, Slot6=20-00")
+        calc_step1 = now_server.hour // 4
+        calc_step2 = calc_step1 + 1
+        st.write(f"**Formula:** (server_hour // 4) + 1")
+        st.write(f"**Step 1:** {now_server.hour} // 4 = {calc_step1}")
+        st.write(f"**Step 2:** {calc_step1} + 1 = {calc_step2}")
+        st.write(f"**Result: Slot {calc_step2} (global, same for all players)**")
 
         # Show what this means in local time
-        slot_starts = [22, 2, 6, 10, 14, 18]
-        current_slot_start_srv = slot_starts[calc_step4 - 1]
-        if current_slot_start_srv == 22:
-            slot_start_time = now_server.start_of('day').add(hours=22)
-        else:
-            slot_start_time = now_server.start_of('day').add(hours=current_slot_start_srv)
-        current_slot_start_local = slot_start_time.in_timezone(user_tz)
-        st.write(f"**In your timezone:** Slot {calc_step4} is {current_slot_start_local.format('HH:mm')}-{current_slot_start_local.add(hours=4).format('HH:mm')} local")
+        slot_starts = [0, 4, 8, 12, 16, 20]
+        current_slot_start_srv = slot_starts[calc_step2 - 1]
+        current_slot_start_local = now_server.start_of('day').add(hours=current_slot_start_srv).in_timezone(user_tz)
+        st.write(f"**In your timezone:** Slot {calc_step2} is {current_slot_start_local.format('HH:mm')}-{current_slot_start_local.add(hours=4).format('HH:mm')} local")
 
         st.write("### Calculated Slot Info")
         st.write(f"**Current Slot (calculated):** {current_slot}")
@@ -613,11 +591,8 @@ if page == "Strategic Dashboard":
         st.write("### First Row of Optimization Table (Should be current slot)")
         first_row_srv   = active_start
         first_row_local = first_row_srv.in_timezone(user_tz)
-        if first_row_srv.hour >= 22:
-            first_row_day = first_row_srv.add(days=1).format('dddd')
-        else:
-            first_row_day = first_row_srv.format('dddd')
-        first_row_slot = ((first_row_srv.hour + 2) % 24 // 4) + 1
+        first_row_day  = first_row_srv.format('dddd')
+        first_row_slot = (first_row_srv.hour // 4) + 1
 
         st.write(f"**First Row Time (Server):** {first_row_srv.format('HH:mm')}")
         st.write(f"**First Row Time (Local):** {first_row_local.format('HH:mm')}")
@@ -701,14 +676,11 @@ if page == "Strategic Dashboard":
         b_srv   = active_start.add(hours=i*4)
         b_local = b_srv.in_timezone(user_tz)
 
-        # Game day resets at 22:00 server time
-        if b_srv.hour >= 22:
-            b_game_day = b_srv.add(days=1).format('dddd')
-        else:
-            b_game_day = b_srv.format('dddd')
+        # Game day resets at midnight server time
+        b_game_day = b_srv.format('dddd')
 
         # Slot from server-time hour
-        b_slot_n = ((b_srv.hour + 2) % 24 // 4) + 1
+        b_slot_n = (b_srv.hour // 4) + 1
 
         b_ar = df[(df['Day'] == b_game_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == b_slot_n)]
         b_vs = df[(df['Day'] == b_game_day) & (df['Type'] == 'VS')]
@@ -779,11 +751,8 @@ if page == "Strategic Dashboard":
 
         for idx, row in plan_df.iterrows():
             b_srv = active_start.add(hours=idx*4)
-            if b_srv.hour >= 22:
-                b_game_day = b_srv.add(days=1).format('dddd')
-            else:
-                b_game_day = b_srv.format('dddd')
-            b_slot_n = ((b_srv.hour + 2) % 24 // 4) + 1
+            b_game_day = b_srv.format('dddd')
+            b_slot_n = (b_srv.hour // 4) + 1
             b_ar = df[(df['Day'] == b_game_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == b_slot_n)]
             b_vs = df[(df['Day'] == b_game_day) & (df['Type'] == 'VS')]
 
@@ -978,11 +947,8 @@ elif page == "Weekly 2× Calendar":
     df = get_game_data()
     days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-    # Game day resets at 22:00 server time
-    if now_server.hour >= 22:
-        today_game_day = now_server.add(days=1).format('dddd')
-    else:
-        today_game_day = now_server.format('dddd')
+    # Game day resets at midnight server time
+    today_game_day = now_server.format('dddd')
 
     # Rotate so today is first, remaining days follow in order
     today_idx = days_order.index(today_game_day)
@@ -1032,8 +998,7 @@ elif page == "Weekly 2× Calendar":
                            (any(word_in_text(x, ar_full_text) for x in ["building", "construction"]) and \
                             any(word_in_text(x, vs_event) or word_in_text(x, vs_task) for x in ["building", "construction"])):
                             # Calculate local time for this slot
-                            slot_hours = [22, 2, 6, 10, 14, 18]
-                            slot_start_srv = now_server.start_of('day').add(hours=slot_hours[slot-1])
+                            slot_start_srv = now_server.start_of('day').add(hours=(slot-1)*4)
                             slot_start_local = slot_start_srv.in_timezone(user_tz).format(fmt)
                             double_value_events.append(f"Slot {slot} ({slot_start_local}): {ar_event_name}")
                             break
@@ -1192,8 +1157,7 @@ elif page == "Arms Race Scheduler":
         selections = []
         for i in range(1, 7):
             # Slot time range in server time, displayed in local tz
-            slot_hour = [22, 2, 6, 10, 14, 18][i-1]
-            slot_start_srv = now_server.start_of('day').add(hours=slot_hour)
+            slot_start_srv = now_server.start_of('day').add(hours=(i-1)*4)
             slot_end_srv   = slot_start_srv.add(hours=4)
             slot_start_local = slot_start_srv.in_timezone(user_tz).format('HH:mm:ss')
             slot_end_local   = slot_end_srv.in_timezone(user_tz).format('HH:mm:ss')
@@ -1251,9 +1215,8 @@ elif page == "Arms Race Scheduler":
     view_df = final_view_df[(final_view_df['Day'] == target_day) & (final_view_df['Type'] == 'Arms Race')].copy()
     if not view_df.empty:
         view_df = view_df.sort_values('Slot').drop_duplicates(subset=['Slot'])
-        # Slot 1 starts at 22:00 server time
-        slot_hours_map = {1: 22, 2: 2, 3: 6, 4: 10, 5: 14, 6: 18}
-        view_df['Time'] = view_df.apply(lambda r: now_server.start_of('day').add(hours=slot_hours_map[int(r['Slot'])]).in_timezone(user_tz).format(fmt), axis=1)
+        # Slot 1 starts at 00:00 server time (= 22:00 Halifax)
+        view_df['Time'] = view_df.apply(lambda r: now_server.start_of('day').add(hours=(int(r['Slot'])-1)*4).in_timezone(user_tz).format(fmt), axis=1)
         st.dataframe(view_df[['Time', 'Event']], hide_index=True, use_container_width=True)
     else:
         st.info("No entries found.")
