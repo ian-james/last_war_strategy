@@ -3,6 +3,8 @@ import pandas as pd
 import pendulum
 import os
 import re
+import json
+from pendulum.tz import FixedTimezone
 
 # --- SETUP ---
 st.set_page_config(page_title="Last Standing Tactician", layout="wide", page_icon="🛡️")
@@ -13,6 +15,7 @@ SPECIAL_FILE = "data/special_events.csv"
 DAILY_TEMPLATES_FILE = "data/daily_task_templates.csv"
 ACTIVE_TASKS_FILE = "data/active_daily_tasks.csv"
 RESTORE_TEMPLATES_FILE = "data/restore_daily_task_templates.csv"
+SECRETARY_FILE         = "data/secretary_event.json"
 
 if not os.path.exists("data"): os.makedirs("data")
 
@@ -102,14 +105,14 @@ def has_tasks_ending_in_window(start_utc, end_utc):
 
     return False
 
-def get_daily_activation_count(task_name, now_utc):
-    """Count how many times a task was activated today (since last 02:00 UTC reset)"""
+def get_daily_activation_count(task_name, now_srv):
+    """Count how many times a task was activated today (since last 02:00 server-time reset)"""
     active_df = get_active_tasks()
     if active_df.empty: return 0
 
-    # Calculate today's reset time (02:00 UTC)
-    daily_reset = now_utc.start_of('day').add(hours=2)
-    if now_utc.hour < 2:
+    # Calculate today's reset time (02:00 server time)
+    daily_reset = now_srv.start_of('day').add(hours=2)
+    if now_srv.hour < 2:
         daily_reset = daily_reset.subtract(days=1)
 
     # Count activations of this task since the reset
@@ -126,24 +129,32 @@ def get_daily_activation_count(task_name, now_utc):
 
     return count
 
-def is_event_in_window(event_row, window_start_utc):
+def is_event_in_window(event_row, window_start):
+    """Check if a special event overlaps a 4-hour window.
+    window_start: pendulum DateTime (server time).  Event times in the CSV are
+    assumed to be in the same frame as window_start.
+    """
     days = str(event_row['days']).split(',')
-    if window_start_utc.format('dddd') not in days: return False
+    if window_start.format('dddd') not in days: return False
     if event_row['freq'] == 'biweekly':
-        if (window_start_utc.week_of_year % 2) != (int(event_row['ref_week']) % 2): return False
+        if (window_start.week_of_year % 2) != (int(event_row['ref_week']) % 2): return False
 
-    start_time = str(event_row['start_time'])
-    end_time = str(event_row['end_time'])
-    win_start = window_start_utc.format('HH:mm')
-    win_end = window_start_utc.add(hours=4).format('HH:mm')
+    # Build absolute datetimes on the window's calendar date
+    base   = window_start.start_of('day')
+    sh, sm = map(int, str(event_row['start_time']).split(':'))
+    eh, em = map(int, str(event_row['end_time']).split(':'))
+    evt_start = base.set(hour=sh, minute=sm)
+    evt_end   = base.set(hour=eh, minute=em)
 
-    # Handle all-day events or events that wrap around midnight (end_time < start_time)
-    if end_time < start_time:
-        # Event spans midnight - check if window overlaps with either end of day or start of day
-        return start_time < win_end or end_time > win_start or win_start >= start_time or win_end <= end_time
+    # end ≤ start means the event wraps past midnight → end is next day
+    if evt_end <= evt_start:
+        evt_end = evt_end.add(days=1)
 
-    # Normal event within same day
-    return start_time < win_end and end_time > win_start
+    win_start = window_start
+    win_end   = window_start.add(hours=4)
+
+    # Standard interval-overlap check (works across midnight automatically)
+    return evt_start < win_end and evt_end > win_start
 
 # --- OVERLAP MAPPING FOR 2× DETECTION ---
 OVERLAP_MAP = {
@@ -168,63 +179,126 @@ def format_duration(total_minutes):
         return f"{hours}h {mins}m" if mins else f"{hours}h"
     return f"{mins}m"
 
+# --- SECRETARY BUFFS ---
+SECRETARIES = {
+    "Secretary of Strategy": {
+        "icon": "🏥",
+        "bonuses": [("Hospital Capacity", "+20%"), ("Unit Healing", "+20%")],
+    },
+    "Secretary of Defense": {
+        "icon": "⚔️",
+        "bonuses": [("Unit Training Cap", "+20%"), ("Training Speed", "+20%")],
+    },
+    "Secretary of Development": {
+        "icon": "🏗️",
+        "bonuses": [("Construction Speed", "+50%"), ("Research Speed", "+25%")],
+    },
+    "Secretary of Science": {
+        "icon": "🔬",
+        "bonuses": [("Research Speed", "+50%"), ("Construction Speed", "+25%")],
+    },
+    "Secretary of Interior": {
+        "icon": "🏘️",
+        "bonuses": [("Food", "+100%"), ("Iron", "+100%"), ("Coin", "+100%")],
+    },
+}
+
+def get_secretary_event():
+    """Return the active secretary event dict, or None."""
+    if not os.path.exists(SECRETARY_FILE):
+        return None
+    with open(SECRETARY_FILE) as f:
+        return json.load(f)
+
+def save_secretary_event(event):
+    """Persist (or clear) the active secretary event."""
+    with open(SECRETARY_FILE, "w") as f:
+        json.dump(event, f)
+
 # --- TIME LOGIC ---
 st.sidebar.title("🛡️ Command Center")
 with st.sidebar:
+    if st.session_state.get('nav_page', "Strategic Dashboard") != "Strategic Dashboard":
+        if st.button("🏠 Dashboard", use_container_width=True, type="primary"):
+            st.session_state['nav_page'] = "Strategic Dashboard"
+            st.rerun()
+
     st.header("⚙️ Configuration")
     
-    # 1. Timezone Selection with NA Support
+    # 0. Server Timezone (default UTC-2; persists once changed)
+    _srv_offsets = [f"UTC{'+' if h >= 0 else ''}{h}" for h in range(-12, 15)]
+    _srv_sel = st.selectbox(
+        "Server Timezone",
+        _srv_offsets,
+        index=_srv_offsets.index("UTC-2"),
+        key="server_tz_select",
+    )
+    _srv_hours      = int(_srv_sel[3:])                # "UTC-2" → -2, "UTC+5" → 5
+    server_tz       = FixedTimezone(_srv_hours * 3600)
+    server_tz_label = _srv_sel
+    st.caption(f"Time in {_srv_sel}  |  UTC: {pendulum.now('UTC').format('HH:mm:ss')}")
+
+    # 1. Local Timezone (defaults to server tz if not set)
     tz_options = [
-        "Select Timezone (N/A)", "America/Halifax", "UTC", "US/Eastern", "US/Central", 
+        "Select Timezone (N/A)", "America/Halifax", "US/Eastern", "US/Central",
         "US/Mountain", "US/Pacific", "US/Alaska", "US/Hawaii",
-        "Canada/Eastern", "Canada/Pacific"
+        "Canada/Eastern", "Canada/Pacific",
+        "Europe/London", "Europe/Paris", "Europe/Berlin",
+        "Asia/Shanghai", "Asia/Tokyo", "Asia/Seoul",
+        "Australia/Sydney", "UTC",
     ]
     selected_tz = st.selectbox("Local Timezone", tz_options, index=0)
-    
+
     if selected_tz == "Select Timezone (N/A)":
-        user_tz = "UTC"
-        st.info("💡 Defaulting to UTC. Select your zone for local times.")
+        user_tz       = server_tz
+        user_tz_label = server_tz_label
+        st.info(f"💡 Defaulting to {server_tz_label}. Select your zone for local times.")
     else:
-        user_tz = selected_tz
+        user_tz       = selected_tz
+        user_tz_label = selected_tz
 
     # 2. Time Mode Selection (Fixes the time_mode error)
     time_mode = st.radio("Time Format", ["24h", "12h"], horizontal=True)
     fmt = "HH:mm" if time_mode == "24h" else "h:mm A"
 
-now_utc = pendulum.now('UTC')
-now_local = now_utc.in_timezone(user_tz)
+now_utc    = pendulum.now('UTC')
+now_server = pendulum.now(server_tz)          # game clock
+now_local  = now_utc.in_timezone(user_tz)
 
-# Both VS Duel and Arms Race reset at 02:00 UTC
-# Before 02:00 UTC, we're still in the previous day's game schedule
-if now_utc.hour < 2:
-    vs_day = now_utc.subtract(days=1).format('dddd')
-    ar_day = now_utc.subtract(days=1).format('dddd')
+# Game day resets at 02:00 server time
+if now_server.hour < 2:
+    vs_day = now_server.subtract(days=1).format('dddd')
+    ar_day = now_server.subtract(days=1).format('dddd')
 else:
-    vs_day = now_utc.format('dddd')
-    ar_day = now_utc.format('dddd')
+    vs_day = now_server.format('dddd')
+    ar_day = now_server.format('dddd')
 
-# Calculate current slot based on UTC time
-# Slot boundaries: 02:00-06:00, 06:00-10:00, 10:00-14:00, 14:00-18:00, 18:00-22:00, 22:00-02:00 UTC
-current_slot = ((now_utc.hour - 2) % 24 // 4) + 1
+# Current slot based on server time
+# Slot boundaries: 02:00-06:00, 06:00-10:00, ..., 22:00-02:00 (server time)
+current_slot = ((now_server.hour - 2) % 24 // 4) + 1
 
-# Map slots to their UTC start hours: [Slot 1, Slot 2, Slot 3, Slot 4, Slot 5, Slot 6]
-slot_start_hours_utc = [2, 6, 10, 14, 18, 22]
-start_hour_utc = slot_start_hours_utc[current_slot - 1]
+slot_start_hours = [2, 6, 10, 14, 18, 22]
+start_hour = slot_start_hours[current_slot - 1]
 
-# Calculate the start of the current 4-hour window in UTC
-if start_hour_utc == 22:
-    # Slot 6: 22:00 UTC to 02:00 UTC next day
-    if now_utc.hour >= 22:
-        active_start_utc = now_utc.start_of('day').add(hours=22)
-    else:  # hour 0 or 1 (still in previous day's Slot 6)
-        active_start_utc = now_utc.subtract(days=1).start_of('day').add(hours=22)
+# Start of the current 4-hour window in server time
+if start_hour == 22:
+    if now_server.hour >= 22:
+        active_start = now_server.start_of('day').add(hours=22)
+    else:  # hour 0 or 1 — still in previous day's Slot 6
+        active_start = now_server.subtract(days=1).start_of('day').add(hours=22)
 else:
-    active_start_utc = now_utc.start_of('day').add(hours=start_hour_utc)
+    active_start = now_server.start_of('day').add(hours=start_hour)
+
+# Game day always starts at 02:00 server time (used for full-day plan view)
+if now_server.hour < 2:
+    game_day_start = now_server.subtract(days=1).start_of('day').add(hours=2)
+else:
+    game_day_start = now_server.start_of('day').add(hours=2)
 
 df = get_game_data()
 specials_df = get_special_events()
 cleanup_expired_tasks()
-page = st.sidebar.selectbox("Navigate", ["Strategic Dashboard", "Weekly 2× Calendar", "Arms Race Scheduler", "VS Duel Manager", "Special Events Manager", "Daily Tasks Manager", "Speed-Up Calculator"])
+page = st.sidebar.selectbox("Navigate", ["Strategic Dashboard", "Weekly 2× Calendar", "Arms Race Scheduler", "VS Duel Manager", "Special Events Manager", "Secretary Buffs", "Daily Tasks Manager", "Speed-Up Calculator"], key="nav_page")
 
 # ==========================================
 # PAGE 1: STRATEGIC DASHBOARD
@@ -244,19 +318,52 @@ if page == "Strategic Dashboard":
             st.session_state.show_debug = not st.session_state.show_debug
             st.rerun()
 
-    # 1. TIMERS
-    reset_time = now_utc.start_of('day').add(hours=2)
-    if now_utc.hour >= 2: reset_time = reset_time.add(days=1)
+    # 1. Auto-reload the dashboard every 60 seconds so all times stay live
+    st.html(
+        '<script>setTimeout(function(){ location.reload(); }, 60000);</script>',
+        unsafe_allow_javascript=True,
+    )
 
-    diff_reset = reset_time - now_utc
-    next_slot_time = active_start_utc.add(hours=4)
-    diff_slot = next_slot_time - now_utc
+    # 2. TIMERS (all relative to server time)
+    reset_time = now_server.start_of('day').add(hours=2)
+    if now_server.hour >= 2:
+        reset_time = reset_time.add(days=1)
+    diff_reset     = reset_time - now_server
+    next_slot_time = active_start.add(hours=4)
+    diff_slot      = next_slot_time - now_server
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("📍 Local", now_local.format(fmt))
-    m2.metric("🌍 Server (UTC)", now_utc.format("HH:mm"))
-    m3.metric("🌙 VS Reset", f"{diff_reset.hours}h {diff_reset.minutes}m")
-    m4.metric("📡 AR Slot Ends", f"{diff_slot.hours}h {diff_slot.minutes}m")
+    # Secretary buff countdown (auto-clears on expiry)
+    sec_event = get_secretary_event()
+    sec_countdown = None
+    if sec_event:
+        sec_start = pendulum.parse(sec_event['start_time_utc'])
+        sec_end   = pendulum.parse(sec_event['end_time_utc'])
+        if now_utc >= sec_end:
+            save_secretary_event(None)          # expired — clear once
+        elif now_utc < sec_start:
+            sec_countdown = {
+                "label": f"🏛️ {sec_event['type'].replace('Secretary of ', '')} starts",
+                "value": sec_start.in_timezone(user_tz).format(fmt),
+            }
+        else:                                   # buff is active right now
+            sec_countdown = {
+                "label": f"🏛️ {sec_event['type'].replace('Secretary of ', '')} ends",
+                "value": sec_end.in_timezone(user_tz).format(fmt),
+            }
+
+    timer_cols = st.columns(5 if sec_countdown else 4)
+    timer_cols[0].metric("📍 Local",          now_local.format(fmt))
+    timer_cols[1].metric("🌍 Server",          now_server.format("HH:mm"))
+    timer_cols[2].metric("🌙 VS Reset",       f"{diff_reset.hours}h {diff_reset.minutes}m")
+    timer_cols[3].metric("📡 AR Slot Ends",   f"{diff_slot.hours}h {diff_slot.minutes}m")
+    if sec_countdown:
+        timer_cols[4].html(f"""
+            <div style="background:#e8f5e9; border:2px solid #4caf50; border-radius:8px;
+                        padding:10px; text-align:center;">
+                <div style="color:#2e7d32; font-size:0.85em; font-weight:bold;">{sec_countdown['label']}</div>
+                <div style="color:#1b5e20; font-size:1.3em; font-weight:bold;">{sec_countdown['value']}</div>
+            </div>
+        """)
 
     # 2. DATA FETCHING
     vs_active = df[(df['Day'] == vs_day) & (df['Type'] == 'VS')]
@@ -267,9 +374,9 @@ if page == "Strategic Dashboard":
     next_drone = None
 
     for i in range(48):
-        scan_t = active_start_utc.add(hours=i*4)
+        scan_t = active_start.add(hours=i*4)
 
-        # Calculate game day (resets at 02:00 UTC)
+        # Calculate game day (resets at 02:00 server time)
         if scan_t.hour < 2:
             s_day = scan_t.subtract(days=1).format('dddd')
         else:
@@ -380,7 +487,7 @@ if page == "Strategic Dashboard":
                     max_daily = int(task['max_daily'])
 
                     # Calculate daily activation count
-                    activations_today = get_daily_activation_count(task['name'], now_utc)
+                    activations_today = get_daily_activation_count(task['name'], now_server)
                     remaining = max_daily - activations_today
                     can_activate = remaining > 0
 
@@ -470,48 +577,47 @@ if page == "Strategic Dashboard":
     if st.session_state.show_debug:
         st.subheader("🔧 Debug Info - Time Calculations")
         st.write("### Current Time Info")
-        st.write(f"**Current UTC Time:** {now_utc.format('YYYY-MM-DD HH:mm:ss ZZ')}")
-        st.write(f"**Current Local Time:** {now_local.format('YYYY-MM-DD HH:mm:ss ZZ')}")
-        st.write(f"**Selected Timezone:** {user_tz}")
-        st.write(f"**Local Hour:** {now_local.hour}")
-        st.write(f"**UTC Hour:** {now_utc.hour}")
+        st.write(f"**Server Time ({server_tz_label}):** {now_server.format('YYYY-MM-DD HH:mm:ss ZZ')}")
+        st.write(f"**UTC Time:** {now_utc.format('YYYY-MM-DD HH:mm:ss ZZ')}")
+        st.write(f"**Local Time ({user_tz_label}):** {now_local.format('YYYY-MM-DD HH:mm:ss ZZ')}")
+        st.write(f"**Server Hour:** {now_server.hour}")
 
-        st.write("### Slot Calculation Step-by-Step (Using UTC)")
-        st.write("**Slot boundaries in UTC:** Slot1=02-06, Slot2=06-10, Slot3=10-14, Slot4=14-18, Slot5=18-22, Slot6=22-02")
-        calc_step1 = now_utc.hour - 2
+        st.write("### Slot Calculation Step-by-Step (Using Server Time)")
+        st.write("**Slot boundaries (server):** Slot1=02-06, Slot2=06-10, Slot3=10-14, Slot4=14-18, Slot5=18-22, Slot6=22-02")
+        calc_step1 = now_server.hour - 2
         calc_step2 = calc_step1 % 24
         calc_step3 = calc_step2 // 4
         calc_step4 = calc_step3 + 1
-        st.write(f"**Formula:** ((now_utc.hour - 2) % 24 // 4) + 1")
-        st.write(f"**Step 1:** {now_utc.hour} - 2 = {calc_step1}")
+        st.write(f"**Formula:** ((server_hour - 2) % 24 // 4) + 1")
+        st.write(f"**Step 1:** {now_server.hour} - 2 = {calc_step1}")
         st.write(f"**Step 2:** {calc_step1} % 24 = {calc_step2}")
         st.write(f"**Step 3:** {calc_step2} // 4 = {calc_step3}")
         st.write(f"**Step 4:** {calc_step3} + 1 = {calc_step4}")
         st.write(f"**Result: Slot {calc_step4} (global, same for all players)**")
 
         # Show what this means in local time
-        slot_starts_utc = [2, 6, 10, 14, 18, 22]
-        current_slot_start_utc = slot_starts_utc[calc_step4 - 1]
-        current_slot_start_local = now_utc.start_of('day').add(hours=current_slot_start_utc).in_timezone(user_tz)
+        slot_starts = [2, 6, 10, 14, 18, 22]
+        current_slot_start_srv = slot_starts[calc_step4 - 1]
+        current_slot_start_local = now_server.start_of('day').add(hours=current_slot_start_srv).in_timezone(user_tz)
         st.write(f"**In your timezone:** Slot {calc_step4} is {current_slot_start_local.format('HH:mm')}-{current_slot_start_local.add(hours=4).format('HH:mm')} local")
 
         st.write("### Calculated Slot Info")
         st.write(f"**Current Slot (calculated):** {current_slot}")
         st.write(f"**Current Game Day (calculated):** {ar_day}")
-        st.write(f"**Active Window Start (Local):** {active_start_utc.in_timezone(user_tz).format('YYYY-MM-DD HH:mm:ss')}")
-        st.write(f"**Active Window End (Local):** {active_start_utc.add(hours=4).in_timezone(user_tz).format('YYYY-MM-DD HH:mm:ss')}")
+        st.write(f"**Active Window Start (Local):** {active_start.in_timezone(user_tz).format('YYYY-MM-DD HH:mm:ss')}")
+        st.write(f"**Active Window End (Local):** {active_start.add(hours=4).in_timezone(user_tz).format('YYYY-MM-DD HH:mm:ss')}")
 
         st.write("### First Row of Optimization Table (Should be current slot)")
-        first_row_utc = active_start_utc
-        first_row_local = first_row_utc.in_timezone(user_tz)
-        # Calculate game day (resets at 02:00 UTC)
-        if first_row_utc.hour < 2:
-            first_row_day = first_row_utc.subtract(days=1).format('dddd')
+        first_row_srv   = active_start
+        first_row_local = first_row_srv.in_timezone(user_tz)
+        # Game day resets at 02:00 server time
+        if first_row_srv.hour < 2:
+            first_row_day = first_row_srv.subtract(days=1).format('dddd')
         else:
-            first_row_day = first_row_utc.format('dddd')
-        first_row_slot = ((first_row_utc.hour - 2) % 24 // 4) + 1
+            first_row_day = first_row_srv.format('dddd')
+        first_row_slot = ((first_row_srv.hour - 2) % 24 // 4) + 1
 
-        st.write(f"**First Row Time (UTC):** {first_row_utc.format('HH:mm')}")
+        st.write(f"**First Row Time (Server):** {first_row_srv.format('HH:mm')}")
         st.write(f"**First Row Time (Local):** {first_row_local.format('HH:mm')}")
         st.write(f"**First Row Day:** {first_row_day}")
         st.write(f"**First Row Slot:** {first_row_slot}")
@@ -587,20 +693,20 @@ if page == "Strategic Dashboard":
             st.write(f"3. **Not Saved?** Hero Development might not be saved in the CSV file yet")
             st.write(f"4. **Check:** Find Hero Development in the table above and compare the Day and Slot")
 
-    st.caption("💡 Hover over cells to see full content if truncated")
+    st.caption(f"📌 Server: {now_server.format('ddd HH:mm')} ({server_tz_label}) · Slot {current_slot} · {ar_day}  |  💡 Hover over cells for full content")
     plan_data = []
     for i in range(6):
-        b_utc = active_start_utc.add(hours=i*4)
-        b_local = b_utc.in_timezone(user_tz)
+        b_srv   = active_start.add(hours=i*4)
+        b_local = b_srv.in_timezone(user_tz)
 
-        # Calculate game day (both Arms Race and VS reset at 02:00 UTC)
-        if b_utc.hour < 2:
-            b_game_day = b_utc.subtract(days=1).format('dddd')
+        # Calculate game day (resets at 02:00 server time)
+        if b_srv.hour < 2:
+            b_game_day = b_srv.subtract(days=1).format('dddd')
         else:
-            b_game_day = b_utc.format('dddd')
+            b_game_day = b_srv.format('dddd')
 
-        # Calculate slot based on UTC time (Slot 1: 02:00-06:00 UTC, etc.)
-        b_slot_n = ((b_utc.hour - 2) % 24 // 4) + 1
+        # Slot from server-time hour
+        b_slot_n = ((b_srv.hour - 2) % 24 // 4) + 1
 
         b_ar = df[(df['Day'] == b_game_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == b_slot_n)]
         b_vs = df[(df['Day'] == b_game_day) & (df['Type'] == 'VS')]
@@ -609,16 +715,16 @@ if page == "Strategic Dashboard":
         # Get all tasks for this slot (there may be multiple rows per slot now)
         all_ar_tasks = " ".join(b_ar['Task'].astype(str).tolist()) if not b_ar.empty else ""
 
-        active_specials = [s_row['name'] for _, s_row in specials_df.iterrows() if is_event_in_window(s_row, b_utc)]
+        active_specials = [s_row['name'] for _, s_row in specials_df.iterrows() if is_event_in_window(s_row, b_srv)]
         specials_str = ", ".join(active_specials) if active_specials else ""
 
         # Get active daily tasks in this window
-        window_end_utc = b_utc.add(hours=4)
-        active_daily_tasks = get_active_tasks_in_window(b_utc, window_end_utc)
+        window_end = b_srv.add(hours=4)
+        active_daily_tasks = get_active_tasks_in_window(b_srv, window_end)
         daily_tasks_str = ", ".join(active_daily_tasks) if active_daily_tasks else ""
 
         # Check if any tasks are ending in this window
-        tasks_ending = has_tasks_ending_in_window(b_utc, window_end_utc)
+        tasks_ending = has_tasks_ending_in_window(b_srv, window_end)
 
         status = "1×"
         match_debug = []
@@ -649,10 +755,13 @@ if page == "Strategic Dashboard":
                     status = "⭐ 2×"
                     break
 
+        is_current = (b_srv <= now_server < b_srv.add(hours=4))
+
         plan_data.append({
-            "Day": b_local.format('dddd'), "Time": b_local.format(fmt),
+            "Day": b_local.format('dddd'), "Time": f"{b_local.format(fmt)}–{b_local.add(hours=4).format(fmt)}",
             "Arms Race": ev_name, "Special Events": specials_str, "Daily Tasks": daily_tasks_str,
             "Optimization": status, "Tasks Ending": tasks_ending,
+            "is_current": is_current,
             "match_debug": match_debug
         })
 
@@ -667,13 +776,13 @@ if page == "Strategic Dashboard":
         st.write(f"**Rows with Both:** {len(plan_df[(plan_df['Optimization'] == '⭐ 2×') & (plan_df['Tasks Ending'] == True)])}")
 
         for idx, row in plan_df.iterrows():
-            b_utc = active_start_utc.add(hours=idx*4)
-            if b_utc.hour < 2:
-                b_game_day = b_utc.subtract(days=1).format('dddd')
+            b_srv = active_start.add(hours=idx*4)
+            if b_srv.hour < 2:
+                b_game_day = b_srv.subtract(days=1).format('dddd')
             else:
-                b_game_day = b_utc.format('dddd')
+                b_game_day = b_srv.format('dddd')
 
-            b_slot_n = ((b_utc.hour - 2) % 24 // 4) + 1
+            b_slot_n = ((b_srv.hour - 2) % 24 // 4) + 1
             b_ar = df[(df['Day'] == b_game_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == b_slot_n)]
             b_vs = df[(df['Day'] == b_game_day) & (df['Type'] == 'VS')]
 
@@ -729,7 +838,7 @@ if page == "Strategic Dashboard":
         header_html = """
         <div style="padding: 8px 5px; margin: 2px 0; display: flex; align-items: center; gap: 5px; font-weight: bold;">
             <div style="width: 70px; flex-shrink: 0;">Day</div>
-            <div style="width: 65px; flex-shrink: 0;">Time</div>
+            <div style="width: 100px; flex-shrink: 0;">Time</div>
             <div style="width: 120px; flex-shrink: 0;">Arms Race</div>
             <div style="flex: 1; min-width: 100px;">Special Events</div>
             <div style="flex: 1; min-width: 100px;">Daily Tasks</div>
@@ -768,7 +877,10 @@ if page == "Strategic Dashboard":
         daily_tasks_content = row_data['Daily Tasks'] if row_data['Daily Tasks'] else ""
 
         # Use HTML flexbox for all rows to ensure consistent alignment
-        row_style = f"background-color: {bg_color}; color: {text_color};" if bg_color else "background-color: transparent; color: inherit;"
+        is_current = full_row.get('is_current', False)
+        now_badge = '<span style="background:#e53935; color:white; font-size:0.7em; font-weight:bold; padding:1px 4px; border-radius:3px; margin-left:2px;">◀ NOW</span>' if is_current else ''
+        border_left = "border-left: 3px solid #e53935;" if is_current else ""
+        row_style = f"background-color: {bg_color}; color: {text_color}; {border_left}" if bg_color else f"background-color: transparent; color: inherit; {border_left}"
 
         # Put the row content and button on the same line
         content_col, btn_col = st.columns([95, 5])
@@ -777,7 +889,7 @@ if page == "Strategic Dashboard":
             row_html = f"""
             <div style="{row_style} padding: 8px 5px; margin: 2px 0; border-radius: 4px; display: flex; align-items: center; gap: 5px;">
                 <div style="width: 70px; flex-shrink: 0; font-size: 0.9em;">{row_data["Day"]}</div>
-                <div style="width: 65px; flex-shrink: 0; font-size: 0.9em;">{row_data["Time"]}</div>
+                <div style="width: 100px; flex-shrink: 0; font-size: 0.9em;">{row_data["Time"]}{now_badge}</div>
                 <div style="width: 120px; flex-shrink: 0; font-size: 0.9em;">{row_data["Arms Race"]}</div>
                 <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{special_events_content}</div>
                 <div style="flex: 1; min-width: 100px; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{daily_tasks_content}</div>
@@ -865,11 +977,11 @@ elif page == "Weekly 2× Calendar":
     df = get_game_data()
     days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-    # Calculate which day is today in game terms
-    if now_utc.hour < 2:
-        today_game_day = now_utc.subtract(days=1).format('dddd')
+    # Calculate which day is today in game terms (resets at 02:00 server time)
+    if now_server.hour < 2:
+        today_game_day = now_server.subtract(days=1).format('dddd')
     else:
-        today_game_day = now_utc.format('dddd')
+        today_game_day = now_server.format('dddd')
 
     # Display calendar
     for day_idx, day in enumerate(days_order):
@@ -915,8 +1027,8 @@ elif page == "Weekly 2× Calendar":
                            (any(word_in_text(x, ar_full_text) for x in ["building", "construction"]) and \
                             any(word_in_text(x, vs_event) or word_in_text(x, vs_task) for x in ["building", "construction"])):
                             # Calculate local time for this slot
-                            slot_start_utc = now_utc.start_of('day').add(hours=(slot-1)*4+2)
-                            slot_start_local = slot_start_utc.in_timezone(user_tz).format(fmt)
+                            slot_start_srv = now_server.start_of('day').add(hours=(slot-1)*4+2)
+                            slot_start_local = slot_start_srv.in_timezone(user_tz).format(fmt)
                             double_value_events.append(f"Slot {slot} ({slot_start_local}): {ar_event_name}")
                             break
 
@@ -1073,12 +1185,11 @@ elif page == "Arms Race Scheduler":
         cols = st.columns(3)
         selections = []
         for i in range(1, 7):
-            # Calculate time range for this slot (UTC: Slot 1=02:00, Slot 2=06:00, etc.)
-            # Formula: (i-1)*4 + 2
-            slot_start_utc = now_utc.start_of('day').add(hours=(i-1)*4+2)
-            slot_end_utc = slot_start_utc.add(hours=4)
-            slot_start_local = slot_start_utc.in_timezone(user_tz).format('HH:mm:ss')
-            slot_end_local = slot_end_utc.in_timezone(user_tz).format('HH:mm:ss')
+            # Slot time range in server time, displayed in local tz
+            slot_start_srv = now_server.start_of('day').add(hours=(i-1)*4+2)
+            slot_end_srv   = slot_start_srv.add(hours=4)
+            slot_start_local = slot_start_srv.in_timezone(user_tz).format('HH:mm:ss')
+            slot_end_local   = slot_end_srv.in_timezone(user_tz).format('HH:mm:ss')
 
             idx = categories.index(day_map[i]) if day_map[i] in categories else 0
             # Use target_day in key to force update when day changes
@@ -1133,8 +1244,8 @@ elif page == "Arms Race Scheduler":
     view_df = final_view_df[(final_view_df['Day'] == target_day) & (final_view_df['Type'] == 'Arms Race')].copy()
     if not view_df.empty:
         view_df = view_df.sort_values('Slot').drop_duplicates(subset=['Slot'])
-        # Use correct formula: (Slot-1)*4 + 2 (Slot 1 starts at 02:00 UTC)
-        view_df['Time'] = view_df.apply(lambda r: now_utc.start_of('day').add(hours=(int(r['Slot'])-1)*4+2).in_timezone(user_tz).format(fmt), axis=1)
+        # Slot 1 starts at 02:00 server time
+        view_df['Time'] = view_df.apply(lambda r: now_server.start_of('day').add(hours=(int(r['Slot'])-1)*4+2).in_timezone(user_tz).format(fmt), axis=1)
         st.dataframe(view_df[['Time', 'Event']], hide_index=True, use_container_width=True)
     else:
         st.info("No entries found.")
@@ -1358,7 +1469,7 @@ elif page == "Special Events Manager":
         c4, c5, c6 = st.columns(3)
         starts_this_week = c4.selectbox("Starts this week?", ["Yes", "No"], index=0 if not edit or (int(edit['ref_week'])%2 == current_parity) else 1) if freq == "biweekly" else "Yes"
 
-        # Check if event is all-day (02:00 UTC to 01:59 UTC)
+        # Check if event is all-day (02:00 to 01:59 server time)
         is_all_day_default = False
         init_s, init_e = "12:00", "14:00"
         if edit:
@@ -1367,18 +1478,18 @@ elif page == "Special Events Manager":
                     is_all_day_default = True
                 sh, sm = map(int, edit['start_time'].split(':'))
                 eh, em = map(int, edit['end_time'].split(':'))
-                init_s = now_utc.at(sh, sm).in_timezone(user_tz).format("HH:mm")
-                init_e = now_utc.at(eh, em).in_timezone(user_tz).format("HH:mm")
+                init_s = now_server.at(sh, sm).in_timezone(user_tz).format("HH:mm")
+                init_e = now_server.at(eh, em).in_timezone(user_tz).format("HH:mm")
             except: pass
 
-        all_day = c4.checkbox("All Day Event", value=is_all_day_default, help="Event runs for the full game day (02:00 UTC to 01:59 UTC)")
+        all_day = c4.checkbox("All Day Event", value=is_all_day_default, help="Event runs for the full game day (02:00 to 01:59 server time)")
 
         if all_day:
-            st.info("ℹ️ All-day event will run from 02:00 UTC to 01:59 UTC (full game day cycle)")
+            st.info("ℹ️ All-day event will run from 02:00 to 01:59 server time (full game day cycle)")
             s_t, e_t = "02:00", "01:59"
         else:
-            s_t = c5.text_input(f"Start Time ({user_tz})", value=init_s, disabled=all_day)
-            e_t = c6.text_input(f"End Time ({user_tz})", value=init_e, disabled=all_day)
+            s_t = c5.text_input(f"Start Time ({user_tz_label})", value=init_s, disabled=all_day)
+            e_t = c6.text_input(f"End Time ({user_tz_label})", value=init_e, disabled=all_day)
 
         if st.form_submit_button("💾 Save to File"):
             if name and days:
@@ -1407,7 +1518,7 @@ elif page == "Special Events Manager":
             try:
                 sh, sm = map(int, str(row['start_time']).split(':'))
                 eh, em = map(int, str(row['end_time']).split(':'))
-                l_s, l_e = now_utc.at(sh, sm).in_timezone(user_tz).format(fmt), now_utc.at(eh, em).in_timezone(user_tz).format(fmt)
+                l_s, l_e = now_server.at(sh, sm).in_timezone(user_tz).format(fmt), now_server.at(eh, em).in_timezone(user_tz).format(fmt)
                 time_display = f"{l_s}-{l_e}"
             except:
                 time_display = "N/A"
@@ -1579,7 +1690,7 @@ elif page == "Daily Tasks Manager":
                 max_daily = int(task['max_daily'])
 
                 # Calculate daily activation count
-                activations_today = get_daily_activation_count(task['name'], now_utc)
+                activations_today = get_daily_activation_count(task['name'], now_server)
                 remaining = max_daily - activations_today
                 can_activate = remaining > 0
 
@@ -1793,4 +1904,136 @@ elif page == "Speed-Up Calculator":
             count = int(rem // val)
             rem  -= count * val
             needed_cols[i].metric(label, str(count) if count else "—")
+
+# ==========================================
+# PAGE 8: SECRETARY BUFFS
+# ==========================================
+elif page == "Secretary Buffs":
+    st.title("🏛️ Secretary Buffs")
+    st.caption("Track your timed secretary position. Each hold lasts 5 minutes — set the start time by server clock or queue depth.")
+
+    sec_event = get_secretary_event()
+
+    # --- Active buff banner (auto-clears on expiry) ---
+    if sec_event:
+        sec_start = pendulum.parse(sec_event['start_time_utc'])
+        sec_end   = pendulum.parse(sec_event['end_time_utc'])
+        now_check = pendulum.now('UTC')
+
+        if now_check >= sec_end:
+            save_secretary_event(None)
+            sec_event = None
+            st.info("Previous secretary buff expired and was cleared.")
+        else:
+            sec_type = sec_event['type']
+            bonuses  = SECRETARIES[sec_type]['bonuses']
+            icon     = SECRETARIES[sec_type]['icon']
+
+            if now_check < sec_start:
+                status_str   = f"Starts at {sec_start.in_timezone(user_tz).format(fmt)}"
+                status_color = "#1976d2"
+            else:
+                status_str   = f"Ends at {sec_end.in_timezone(user_tz).format(fmt)}"
+                status_color = "#2e7d32"
+
+            bonus_tags = "  ".join(
+                f'<span style="background:#c8e6c9; padding:3px 10px; border-radius:12px; '
+                f'font-size:0.9em; color:#2e7d32; font-weight:bold;">{name} {val}</span>'
+                for name, val in bonuses
+            )
+
+            st.html(f"""
+                <div style="background:#e8f5e9; border:2px solid #4caf50; border-radius:10px;
+                            padding:18px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <h3 style="margin:0; color:#1b5e20;">{icon} {sec_type}</h3>
+                            <div style="color:{status_color}; font-weight:bold; font-size:1.15em; margin-top:6px;">{status_str}</div>
+                        </div>
+                        <div style="text-align:right; color:#546e7a; font-size:0.9em;">
+                            <div>Start: {sec_start.in_timezone(user_tz).format(fmt)}</div>
+                            <div>End:&nbsp;&nbsp; {sec_end.in_timezone(user_tz).format(fmt)}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">{bonus_tags}</div>
+                </div>
+            """)
+
+            if st.button("🗑️ Clear active buff", type="secondary", key="sec_clear"):
+                save_secretary_event(None)
+                st.rerun()
+
+            st.divider()
+
+    # --- Secretary type selection ---
+    with st.container(border=True):
+        st.subheader("Choose Secretary")
+        sec_type = st.selectbox(
+            "Secretary Type",
+            list(SECRETARIES.keys()),
+            key="sec_type_select"
+        )
+
+        # Bonus preview
+        sec_info  = SECRETARIES[sec_type]
+        bonus_cols = st.columns(len(sec_info['bonuses']))
+        for col, (name, val) in zip(bonus_cols, sec_info['bonuses']):
+            col.metric(name, val)
+
+    # --- Time input ---
+    with st.container(border=True):
+        st.subheader("When does your turn start?")
+        time_mode = st.radio(
+            "Input method",
+            ["Server Time", "People in Line"],
+            key="sec_time_mode",
+            horizontal=True
+        )
+
+        if time_mode == "Server Time":
+            st.caption(f"Server clock now: {now_server.format('HH:mm:ss')}")
+            tgt_cols   = st.columns(2)
+            srv_tgt_h  = tgt_cols[0].number_input("Starts — Hour",   min_value=0, max_value=23, value=now_server.hour,   step=1, key="sec_srv_tgt_h")
+            srv_tgt_m  = tgt_cols[1].number_input("Starts — Minute", min_value=0, max_value=59, value=now_server.minute, step=1, key="sec_srv_tgt_m")
+
+            # Delta from synced server clock; wraps forward at 24 h
+            delta_minutes = (srv_tgt_h * 60 + srv_tgt_m) - (now_server.hour * 60 + now_server.minute)
+            if delta_minutes < 0:
+                delta_minutes += 1440
+            sec_start_time = now_utc.add(minutes=delta_minutes)
+
+            # Server-time end for preview (handle hour wrap)
+            srv_end_total  = srv_tgt_h * 60 + srv_tgt_m + 5
+            server_preview = f"Server {srv_tgt_h:02d}:{srv_tgt_m:02d}–{(srv_end_total // 60) % 24:02d}:{srv_end_total % 60:02d}"
+        else:
+            people_ahead = st.number_input(
+                "People ahead of you in line",
+                min_value=0, value=0, step=1,
+                key="sec_people_ahead",
+                help="0 = you are up next (buff starts now)."
+            )
+            sec_start_time  = now_utc.add(minutes=people_ahead * 5)
+            server_preview  = ""
+
+        sec_end_time = sec_start_time.add(minutes=5)
+
+        # Preview line
+        st.info(
+            f"**Buff window:**  "
+            f"{sec_start_time.in_timezone(user_tz).format(fmt)} → {sec_end_time.in_timezone(user_tz).format(fmt)}  "
+            + (f"({server_preview})" if server_preview else "")
+        )
+
+    # --- Activate ---
+    if st.button("✅ Set Secretary Buff", type="primary", key="sec_set"):
+        save_secretary_event({
+            'type':           sec_type,
+            'start_time_utc': sec_start_time.to_iso8601_string(),
+            'end_time_utc':   sec_end_time.to_iso8601_string(),
+        })
+        st.success(
+            f"{SECRETARIES[sec_type]['icon']} {sec_type} set!  "
+            f"Active {sec_start_time.in_timezone(user_tz).format(fmt)}–{sec_end_time.in_timezone(user_tz).format(fmt)}."
+        )
+        st.rerun()
 

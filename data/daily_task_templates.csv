@@ -1,5 +1,6 @@
 name	duration_n	duration_r	duration_sr	duration_ssr	duration_ur	max_daily	category	color_code	icon	is_default
 Ghost Ops	30	45	60	75	90	3	Combat	#ff5722	🎯	True
-Trucks	10	20	30	40	50	5	Resources	#4caf50	🚚	True
 Fortress Defense	20	30	45	60	75	2	Defense	#2196f3	🏰	True
 Alliance Mobilization	20	20	20	20	20	10	Social	#9c27b0	🤝	True
+Secret Mobile Squad	10	20	30	60	120	7	Resources	#41ce8d	🗡️	False
+Trucks	10	200	230	300	360	5	Resources	#3b3394	⭐	True
