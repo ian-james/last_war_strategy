@@ -172,118 +172,59 @@ def render(time_ctx: dict):
 
     st.divider()
 
-    # Group tasks by base name (without rarity suffix)
-    def get_base_name(name):
-        """Extract base name without rarity suffix like (UR), (SSR), etc."""
-        import re
-        # Remove rarity suffixes in parentheses at the end
-        base = re.sub(r'\s*\([A-Z]{1,3}\)\s*$', '', name)
-        return base.strip()
-
-    def get_rarity_from_name(name):
-        """Extract rarity level from name if present."""
-        import re
-        match = re.search(r'\(([A-Z]{1,3})\)\s*$', name)
-        return match.group(1) if match else None
-
-    # Group templates by base name
-    if not templates_df.empty:
-        templates_df['base_name'] = templates_df['name'].apply(get_base_name)
-        grouped_templates = {}
-
-        for idx, task in templates_df.iterrows():
-            base_name = task['base_name']
-            if base_name not in grouped_templates:
-                grouped_templates[base_name] = []
-            grouped_templates[base_name].append((idx, task))
-
     # Display all templates (default and custom together)
-    st.write(f"### 📋 Task Templates ({len(grouped_templates) if not templates_df.empty else 0})")
+    st.write(f"### 📋 Task Templates ({len(templates_df)})")
     if templates_df.empty:
         st.info("No task templates. Use Restore Defaults to load default tasks or create a new one above.")
     else:
-        for base_name, task_group in grouped_templates.items():
-            # Merge durations from all tasks in the group
-            merged_durations = {'N': 0, 'R': 0, 'SR': 0, 'SSR': 0, 'UR': 0}
-            icon = None
-            category = None
-            max_daily = None
-            color_code = None
-            task_name_for_activation = base_name
-
-            # Use the first task's metadata, but merge all durations
-            first_idx, first_task = task_group[0]
-            icon = first_task['icon']
-            category = first_task['category']
-            max_daily = int(first_task['max_daily'])
-            color_code = first_task.get('color_code', '#9e9e9e')
-
-            # Merge durations from all tasks in group
-            for idx, task in task_group:
-                # If this is a rarity-suffixed name, extract the rarity and use that duration
-                rarity = get_rarity_from_name(task['name'])
-                if rarity:
-                    if rarity in merged_durations:
-                        merged_durations[rarity] = max(merged_durations[rarity], int(task.get(f'duration_{rarity.lower()}', 0)))
-                else:
-                    # Task has no rarity suffix, merge all its durations
-                    merged_durations['N'] = max(merged_durations['N'], int(task['duration_n']))
-                    merged_durations['R'] = max(merged_durations['R'], int(task['duration_r']))
-                    merged_durations['SR'] = max(merged_durations['SR'], int(task['duration_sr']))
-                    merged_durations['SSR'] = max(merged_durations['SSR'], int(task['duration_ssr']))
-                    merged_durations['UR'] = max(merged_durations['UR'], int(task['duration_ur']))
-
+        for idx, task in templates_df.iterrows():
             with st.container(border=True):
+                dur_n = int(task['duration_n'])
+                dur_r = int(task['duration_r'])
+                dur_sr = int(task['duration_sr'])
+                dur_ssr = int(task['duration_ssr'])
+                dur_ur = int(task['duration_ur'])
+                max_daily = int(task['max_daily'])
+
                 # Calculate daily activation count
-                activations_today = get_daily_activation_count(base_name, now_server)
+                activations_today = get_daily_activation_count(task['name'], now_server)
                 remaining = max_daily - activations_today
                 can_activate = remaining > 0
 
                 # Build list of available levels (duration > 0)
                 available_levels = []
-                if merged_durations['N'] > 0:
-                    available_levels.append(('N', merged_durations['N']))
-                if merged_durations['R'] > 0:
-                    available_levels.append(('R', merged_durations['R']))
-                if merged_durations['SR'] > 0:
-                    available_levels.append(('SR', merged_durations['SR']))
-                if merged_durations['SSR'] > 0:
-                    available_levels.append(('SSR', merged_durations['SSR']))
-                if merged_durations['UR'] > 0:
-                    available_levels.append(('UR', merged_durations['UR']))
+                if dur_n > 0:
+                    available_levels.append(('N', dur_n))
+                if dur_r > 0:
+                    available_levels.append(('R', dur_r))
+                if dur_sr > 0:
+                    available_levels.append(('SR', dur_sr))
+                if dur_ssr > 0:
+                    available_levels.append(('SSR', dur_ssr))
+                if dur_ur > 0:
+                    available_levels.append(('UR', dur_ur))
 
                 # Check if task has level variants
                 has_multiple_levels = len(available_levels) > 1
 
-                # Create display name with rarity levels
-                rarity_levels = [level for level, _ in available_levels]
-                if len(rarity_levels) > 1:
-                    display_name = f"{base_name} ({', '.join(rarity_levels)})"
-                elif len(rarity_levels) == 1:
-                    display_name = f"{base_name} ({rarity_levels[0]})"
-                else:
-                    display_name = base_name
-
                 if has_multiple_levels:
                     cols = st.columns([2, 2, 2, 1, 1])
-                    cols[0].write(f"{icon} **{display_name}**")
-                    cols[1].write(f"📂 {category} | 📊 {remaining}/{max_daily} left")
+                    cols[0].write(f"{task['icon']} **{task['name']}**")
+                    cols[1].write(f"📂 {task['category']} | 📊 {remaining}/{max_daily} left")
 
                     # Create buttons for available levels only
                     num_levels = len(available_levels)
                     level_buttons = cols[2].columns(num_levels)
 
                     for btn_idx, (level_name, duration) in enumerate(available_levels):
-                        # Use base_name with first_idx for unique key
-                        btn_key = f"act_tpl_{level_name}_{first_idx}_{base_name.replace(' ', '_')}"
-                        if level_buttons[btn_idx].button(level_name, key=btn_key, use_container_width=True, help=f"{duration}m", disabled=not can_activate):
+                        if level_buttons[btn_idx].button(level_name, key=f"act_tpl_{level_name}_{idx}", use_container_width=True, help=f"{duration}m", disabled=not can_activate):
                             now_utc_time = pendulum.now('UTC')
                             end_time = now_utc_time.add(minutes=duration)
-                            task_id = f"{base_name}_{now_utc_time.int_timestamp}"
+                            task_id = f"{task['name']}_{now_utc_time.int_timestamp}"
 
                             new_active = pd.DataFrame([{
                                 'task_id': task_id,
-                                'task_name': f"{base_name} ({level_name})",
+                                'task_name': f"{task['name']} ({level_name})",
                                 'start_time_utc': now_utc_time.to_iso8601_string(),
                                 'duration_minutes': duration,
                                 'end_time_utc': end_time.to_iso8601_string(),
@@ -292,37 +233,34 @@ def render(time_ctx: dict):
 
                             active_df = pd.concat([active_df, new_active], ignore_index=True)
                             active_df.to_csv(ACTIVE_TASKS_FILE, sep="\t", index=False)
-                            st.success(f"✅ {base_name} ({level_name}) activated!")
+                            st.success(f"✅ {task['name']} ({level_name}) activated!")
                             st.rerun()
 
-                    if cols[3].button("📝", key=f"edit_tpl_{first_idx}"):
-                        # Edit first task in group
-                        st.session_state.edit_template = first_task.to_dict()
+                    if cols[3].button("📝", key=f"edit_tpl_{idx}"):
+                        st.session_state.edit_template = task.to_dict()
                         st.rerun()
 
-                    if cols[4].button("🗑️", key=f"del_tpl_{first_idx}"):
-                        # Delete all tasks in this group
-                        for idx, task in task_group:
-                            templates_df = templates_df[templates_df['name'] != task['name']]
+                    if cols[4].button("🗑️", key=f"del_tpl_{idx}"):
+                        templates_df = templates_df[templates_df['name'] != task['name']]
                         templates_df.to_csv(DAILY_TEMPLATES_FILE, sep="\t", index=False)
-                        st.success(f"Template '{display_name}' deleted.")
+                        st.success(f"Template '{task['name']}' deleted.")
                         st.rerun()
 
                 elif len(available_levels) == 1:
                     # Single level - simple activation button
                     level_name, duration = available_levels[0]
                     cols = st.columns([2, 2, 1, 1, 1])
-                    cols[0].write(f"{icon} **{display_name}**")
-                    cols[1].write(f"⏱️ {duration}m | 📂 {category} | 📊 {remaining}/{max_daily} left")
+                    cols[0].write(f"{task['icon']} **{task['name']}**")
+                    cols[1].write(f"⏱️ {duration}m | 📂 {task['category']} | 📊 {remaining}/{max_daily} left")
 
-                    if cols[2].button("▶️", key=f"act_tpl_{first_idx}_single", disabled=not can_activate):
+                    if cols[2].button("▶️", key=f"act_tpl_{idx}", disabled=not can_activate):
                         now_utc_time = pendulum.now('UTC')
                         end_time = now_utc_time.add(minutes=duration)
-                        task_id = f"{base_name}_{now_utc_time.int_timestamp}"
+                        task_id = f"{task['name']}_{now_utc_time.int_timestamp}"
 
                         new_active = pd.DataFrame([{
                             'task_id': task_id,
-                            'task_name': f"{base_name} ({level_name})" if level_name else base_name,
+                            'task_name': task['name'],
                             'start_time_utc': now_utc_time.to_iso8601_string(),
                             'duration_minutes': duration,
                             'end_time_utc': end_time.to_iso8601_string(),
@@ -331,35 +269,31 @@ def render(time_ctx: dict):
 
                         active_df = pd.concat([active_df, new_active], ignore_index=True)
                         active_df.to_csv(ACTIVE_TASKS_FILE, sep="\t", index=False)
-                        st.success(f"✅ {display_name} activated!")
+                        st.success(f"✅ {task['name']} activated!")
                         st.rerun()
 
-                    if cols[3].button("📝", key=f"edit_tpl_sl_{first_idx}"):
-                        st.session_state.edit_template = first_task.to_dict()
+                    if cols[3].button("📝", key=f"edit_tpl_sl_{idx}"):
+                        st.session_state.edit_template = task.to_dict()
                         st.rerun()
 
-                    if cols[4].button("🗑️", key=f"del_tpl_sl_{first_idx}"):
-                        # Delete all tasks in this group
-                        for idx, task in task_group:
-                            templates_df = templates_df[templates_df['name'] != task['name']]
+                    if cols[4].button("🗑️", key=f"del_tpl_sl_{idx}"):
+                        templates_df = templates_df[templates_df['name'] != task['name']]
                         templates_df.to_csv(DAILY_TEMPLATES_FILE, sep="\t", index=False)
-                        st.success(f"Template '{display_name}' deleted.")
+                        st.success(f"Template '{task['name']}' deleted.")
                         st.rerun()
 
                 else:
                     # No valid levels (all durations are 0) - show info message
                     cols = st.columns([2, 2, 1, 1, 1])
-                    cols[0].write(f"{icon} **{base_name}**")
-                    cols[1].write(f"📂 {category} | ⚠️ No levels configured")
+                    cols[0].write(f"{task['icon']} **{task['name']}**")
+                    cols[1].write(f"📂 {task['category']} | ⚠️ No levels configured")
 
-                    if cols[3].button("📝", key=f"edit_tpl_nv_{first_idx}"):
-                        st.session_state.edit_template = first_task.to_dict()
+                    if cols[3].button("📝", key=f"edit_tpl_nv_{idx}"):
+                        st.session_state.edit_template = task.to_dict()
                         st.rerun()
 
-                    if cols[4].button("🗑️", key=f"del_tpl_nv_{first_idx}"):
-                        # Delete all tasks in this group
-                        for idx, task in task_group:
-                            templates_df = templates_df[templates_df['name'] != task['name']]
+                    if cols[4].button("🗑️", key=f"del_tpl_nv_{idx}"):
+                        templates_df = templates_df[templates_df['name'] != task['name']]
                         templates_df.to_csv(DAILY_TEMPLATES_FILE, sep="\t", index=False)
-                        st.success(f"Template '{base_name}' deleted.")
+                        st.success(f"Template '{task['name']}' deleted.")
                         st.rerun()
