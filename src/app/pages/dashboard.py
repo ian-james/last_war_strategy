@@ -112,9 +112,12 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
     if 'show_debug' not in st.session_state:
         st.session_state.show_debug = False
 
-    col_title, col_debug = st.columns([4, 1])
+    col_title, col_refresh, col_debug = st.columns([3, 1, 1])
     with col_title:
         st.title(f"🛡️ {vs_day} Tactical Overview")
+    with col_refresh:
+        if st.button("🔄 Refresh", use_container_width=True, type="primary"):
+            st.rerun()
     with col_debug:
         if st.button("🐛 Debug" if not st.session_state.show_debug else "✅ Debug",
                      use_container_width=True,
