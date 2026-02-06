@@ -8,7 +8,7 @@ from app.config.constants import ARMS_RACE_FILE
 from app.utils.data_loaders import get_game_data
 
 
-def render(time_ctx: dict):
+def render(time_ctx: dict, df: pd.DataFrame):
     """Render the Arms Race Scheduler page.
 
     Args:
@@ -16,6 +16,7 @@ def render(time_ctx: dict):
             - now_server: Current time in server timezone
             - user_tz: User's selected timezone
             - fmt: Time format string
+        df: Combined Arms Race + VS Duel schedule dataframe
     """
     now_server = time_ctx['now_server']
     user_tz = time_ctx['user_tz']
@@ -24,7 +25,6 @@ def render(time_ctx: dict):
     st.title("🔄 Arms Race Scheduler")
     categories = ["Base Building", "Tech Research", "Drone Boost", "Hero Development", "Unit Progression", "All-Rounder"]
     target_day = st.selectbox("Select Day to Manage", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
-    df = get_game_data()
 
     with st.form("ar_scheduler_form"):
         st.write(f"### Edit Rotation: {target_day}")

@@ -6,11 +6,12 @@ import pandas as pd
 from app.config.constants import VS_DUEL_FILE
 
 
-def render(time_ctx: dict):
+def render(time_ctx: dict, df: pd.DataFrame = None):
     """Render the VS Duel Manager page.
 
     Args:
         time_ctx: Dictionary from setup_timezone_and_time() (not heavily used here)
+        df: Combined schedule dataframe (optional, not used - reads from file directly)
     """
     st.title("⚔️ VS Duel Manager")
 

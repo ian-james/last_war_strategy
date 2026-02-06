@@ -46,9 +46,9 @@ st.sidebar.title("🛡️ Command Center")
 
 # Dashboard quick access button (except on Dashboard itself)
 with st.sidebar:
-    if st.session_state.get('nav_page', "Strategic Dashboard") != "Strategic Dashboard":
+    if st.session_state.get('nav_page', "Main Dashboard") != "Main Dashboard":
         if st.button("🏠 Dashboard", use_container_width=True, type="primary"):
-            st.session_state['nav_page'] = "Strategic Dashboard"
+            st.session_state['nav_page'] = "Main Dashboard"
             st.rerun()
 
 # --- TIME SETUP ---
@@ -63,7 +63,7 @@ cleanup_expired_tasks()
 page = st.sidebar.selectbox(
     "Navigate",
     [
-        "Strategic Dashboard",
+        "Main Dashboard",
         "Weekly 2× Calendar",
         "Arms Race Scheduler",
         "VS Duel Manager",
@@ -76,20 +76,20 @@ page = st.sidebar.selectbox(
 )
 
 # --- PAGE ROUTING ---
-if page == "Strategic Dashboard":
+if page == "Main Dashboard":
     dashboard.render(time_ctx, df, specials_df)
 
 elif page == "Weekly 2× Calendar":
-    weekly_calendar.render(time_ctx)
+    weekly_calendar.render(time_ctx, df)
 
 elif page == "Arms Race Scheduler":
-    arms_scheduler.render(time_ctx)
+    arms_scheduler.render(time_ctx, df)
 
 elif page == "VS Duel Manager":
-    vs_duel.render(time_ctx)
+    vs_duel.render(time_ctx, df)
 
 elif page == "Special Events Manager":
-    special_events.render(time_ctx)
+    special_events.render(time_ctx, specials_df)
 
 elif page == "Secretary Buffs":
     secretary_buffs.render(time_ctx)

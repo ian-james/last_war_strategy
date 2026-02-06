@@ -1,12 +1,12 @@
 """Weekly 2× Opportunities Calendar page."""
 
 import streamlit as st
+import pandas as pd
 from app.config.constants import OVERLAP_MAP
 from app.utils.helpers import word_in_text
-from app.utils.data_loaders import get_game_data
 
 
-def render(time_ctx: dict):
+def render(time_ctx: dict, df: pd.DataFrame):
     """Render the Weekly 2× Opportunities Calendar page.
 
     Args:
@@ -14,6 +14,7 @@ def render(time_ctx: dict):
             - now_server: Current time in server timezone
             - user_tz: User's selected timezone
             - fmt: Time format string
+        df: Combined Arms Race + VS Duel schedule dataframe
     """
     now_server = time_ctx['now_server']
     user_tz = time_ctx['user_tz']
@@ -31,9 +32,6 @@ def render(time_ctx: dict):
         "Base Expansion": "Building speedups, Trade trucks, Survivors",
         "Age of Science": "Tech speedups, Valor badges, Drone components"
     }
-
-    # Get VS events for the week
-    df = get_game_data()
     days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     # Game day resets at midnight server time

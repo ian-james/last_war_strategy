@@ -8,7 +8,7 @@ from app.config.constants import SPECIAL_FILE
 from app.utils.data_loaders import get_special_events
 
 
-def render(time_ctx: dict):
+def render(time_ctx: dict, specials_df: pd.DataFrame):
     """Render the Special Events Manager page.
 
     Args:
@@ -18,6 +18,7 @@ def render(time_ctx: dict):
             - user_tz: User's selected timezone
             - user_tz_label: Label for user's timezone
             - fmt: Time format string
+        specials_df: Special events dataframe
     """
     now_utc = time_ctx['now_utc']
     now_server = time_ctx['now_server']
@@ -27,7 +28,6 @@ def render(time_ctx: dict):
 
     st.title("📅 Special Events Manager")
     RESTORE_SPECIAL = "data/restore_special_events.csv"
-    specials_df = get_special_events()
 
     if 'edit_event' not in st.session_state:
         st.session_state.edit_event = None

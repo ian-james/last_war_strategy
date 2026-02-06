@@ -140,13 +140,13 @@ def apply_slot_swap(df: pd.DataFrame, day: str, now_server: pendulum.DateTime) -
     if today_ar.empty:
         return df
 
-    # Get events in the two slots
-    from_slot_events = today_ar[today_ar['Slot'] == from_slot].copy()
-    to_slot_events = today_ar[today_ar['Slot'] == to_slot].copy()
-
-    # Swap the slot numbers
-    today_ar.loc[today_ar['Slot'] == from_slot, 'Slot'] = to_slot
+    # Swap the slot numbers using a temporary value to avoid collision
+    # First, mark from_slot with a temporary value
+    today_ar.loc[today_ar['Slot'] == from_slot, 'Slot'] = -1
+    # Then, change to_slot to from_slot
     today_ar.loc[today_ar['Slot'] == to_slot, 'Slot'] = from_slot
+    # Finally, change the temporary value to to_slot
+    today_ar.loc[today_ar['Slot'] == -1, 'Slot'] = to_slot
 
     # Remove original today's data and add swapped data
     df_other = df[~((df['Day'] == day) & (df['Type'] == 'Arms Race'))]
