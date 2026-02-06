@@ -29,7 +29,8 @@ def setup_timezone_and_time():
             - ar_day: str current day name for Arms Race events
     """
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.divider()
+        st.header("⚙️ Configuration Options")
 
         # 0. Server Timezone (default UTC-2; persists once changed)
         _all_offsets = [f"UTC{'+' if h >= 0 else ''}{h}" for h in range(-12, 15)]

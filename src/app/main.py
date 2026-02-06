@@ -44,36 +44,32 @@ if not os.path.exists("data"):
 # --- SIDEBAR SETUP ---
 st.sidebar.title("🛡️ Command Center")
 
-# Dashboard quick access button (except on Dashboard itself)
+# --- NAVIGATION ---
 with st.sidebar:
-    if st.session_state.get('nav_page', "Main Dashboard") != "Main Dashboard":
-        if st.button("🏠 Dashboard", use_container_width=True, type="primary"):
-            st.session_state['nav_page'] = "Main Dashboard"
-            st.rerun()
+    st.header("📍 Navigation")
+    page = st.selectbox(
+        "Select Page",
+        [
+            "Main Dashboard",
+            "Weekly 2× Calendar",
+            "Arms Race Scheduler",
+            "VS Duel Manager",
+            "Special Events Manager",
+            "Secretary Buffs",
+            "Daily Tasks Manager",
+            "Speed-Up Calculator"
+        ],
+        key="nav_page",
+        label_visibility="collapsed"
+    )
 
-# --- TIME SETUP ---
+# --- CONFIGURATION (at bottom of sidebar) ---
 time_ctx = setup_timezone_and_time()
 
 # --- LOAD DATA ---
 df = get_game_data()
 specials_df = get_special_events()
 cleanup_expired_tasks()
-
-# --- NAVIGATION ---
-page = st.sidebar.selectbox(
-    "Navigate",
-    [
-        "Main Dashboard",
-        "Weekly 2× Calendar",
-        "Arms Race Scheduler",
-        "VS Duel Manager",
-        "Special Events Manager",
-        "Secretary Buffs",
-        "Daily Tasks Manager",
-        "Speed-Up Calculator"
-    ],
-    key="nav_page"
-)
 
 # --- PAGE ROUTING ---
 if page == "Main Dashboard":
