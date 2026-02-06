@@ -67,8 +67,7 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
 
     # 1. Auto-reload the dashboard every 60 seconds so all times stay live
     st.html(
-        '<script>setTimeout(function(){ location.reload(); }, 60000);</script>',
-        unsafe_allow_javascript=True,
+        '<script>setTimeout(function(){ location.reload(); }, 60000);</script>'
     )
 
     # 2. TIMERS (all relative to server time)

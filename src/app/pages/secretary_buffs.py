@@ -69,7 +69,7 @@ def render(time_ctx: dict):
                     </div>
                     <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">{bonus_tags}</div>
                 </div>
-            """, unsafe_allow_html=True)
+            """)
 
             if st.button("🗑️ Clear active buff", type="secondary", key="sec_clear"):
                 save_secretary_event(None)

@@ -96,7 +96,7 @@ def render(time_ctx: dict):
                 <span style="color:#fff; font-weight:bold; font-size:14px;">{pct_covered:.0f}%</span>
               </div>
             </div>
-        """, unsafe_allow_html=True)
+        """)
 
         if pct_covered >= 100:
             st.success(f"Fully covered! {format_duration(leftover_minutes)} left over.")
