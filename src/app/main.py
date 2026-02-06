@@ -34,7 +34,20 @@ from app.pages import (
 st.set_page_config(
     page_title="Last Standing Tactician",
     layout="wide",
-    page_icon="🛡️"
+    page_icon="🛡️",
+    initial_sidebar_state="expanded"
+)
+
+# Hide Streamlit's default page navigation
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 # --- ENSURE DATA DIRECTORY EXISTS ---
