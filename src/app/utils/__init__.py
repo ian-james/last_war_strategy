@@ -15,6 +15,13 @@ from .task_manager import (
 )
 from .secretary import get_secretary_event, save_secretary_event
 from .time_utils import setup_timezone_and_time
+from .slot_swap import (
+    get_daily_slot_swap,
+    save_daily_slot_swap,
+    clear_daily_slot_swap,
+    can_swap_today,
+    apply_slot_swap,
+)
 
 __all__ = [
     # helpers
@@ -36,4 +43,10 @@ __all__ = [
     "save_secretary_event",
     # time_utils
     "setup_timezone_and_time",
+    # slot_swap
+    "get_daily_slot_swap",
+    "save_daily_slot_swap",
+    "clear_daily_slot_swap",
+    "can_swap_today",
+    "apply_slot_swap",
 ]

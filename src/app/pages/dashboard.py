@@ -18,6 +18,11 @@ from app.utils import (
     get_daily_templates,
     get_daily_activation_count,
     word_in_text,
+    get_daily_slot_swap,
+    save_daily_slot_swap,
+    clear_daily_slot_swap,
+    can_swap_today,
+    apply_slot_swap,
 )
 
 
@@ -50,6 +55,9 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
     ar_day = time_ctx['ar_day']
     server_tz_label = time_ctx['server_tz_label']
     user_tz_label = time_ctx['user_tz_label']
+
+    # Apply daily slot swap if one exists for today
+    df = apply_slot_swap(df, ar_day, now_server)
 
     # Debug toggle
     if 'show_debug' not in st.session_state:
@@ -312,6 +320,79 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
                         st.warning(f"No active durations configured for {task['name']}")
 
     st.divider()
+
+    # 6.5. TACTICAL SLOT SWAP
+    swap_available = can_swap_today(now_server)
+    current_swap = get_daily_slot_swap()
+
+    # Show swap status
+    if current_swap and not swap_available:
+        # Active swap exists
+        from_slot = current_swap['from_slot']
+        to_slot = current_swap['to_slot']
+        st.info(f"🔄 **Active Slot Swap Today:** Slot {from_slot} ↔ Slot {to_slot}  |  Resets at 02:00 server time tomorrow")
+
+    if swap_available:
+        with st.expander("🔄 **Tactical Slot Swap** (Once Daily)", expanded=False):
+            st.caption("Swap the current time slot with another slot for today only. Does not affect your weekly schedule.")
+
+            col1, col2, col3 = st.columns([2, 2, 1])
+
+            with col1:
+                st.write(f"**Current Slot:** {current_slot}")
+                current_ar = df[(df['Day'] == ar_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == current_slot)]
+                if not current_ar.empty:
+                    st.write(f"📍 {current_ar['Event'].iloc[0]}")
+                else:
+                    st.write("📍 No event scheduled")
+
+            with col2:
+                st.write("**Swap With:**")
+                # Get available slots for today (excluding current slot)
+                other_slots = [s for s in range(1, 7) if s != current_slot]
+                slot_options = {}
+                for slot_num in other_slots:
+                    slot_ar = df[(df['Day'] == ar_day) & (df['Type'] == 'Arms Race') & (df['Slot'] == slot_num)]
+                    event_name = slot_ar['Event'].iloc[0] if not slot_ar.empty else "No event"
+                    # Convert slot to server time for display
+                    slot_hour = SLOT_START_HOURS[slot_num - 1]
+                    slot_time_srv = now_server.start_of('day').add(hours=slot_hour)
+                    slot_time_local = slot_time_srv.in_timezone(user_tz).format('HH:mm')
+                    slot_options[f"Slot {slot_num} ({slot_time_local}) - {event_name}"] = slot_num
+
+                selected_option = st.selectbox(
+                    "Select slot to swap with:",
+                    options=list(slot_options.keys()),
+                    key="swap_target_slot"
+                )
+                target_slot = slot_options[selected_option]
+
+            with col3:
+                st.write("")  # Spacing
+                st.write("")  # Spacing
+                if st.button("🔄 Swap Slots", type="primary", use_container_width=True, key="execute_swap"):
+                    # Save the swap
+                    game_date_str = now_server.format('YYYY-MM-DD')
+                    save_daily_slot_swap(current_slot, target_slot, game_date_str)
+                    st.success(f"✅ Swapped Slot {current_slot} ↔ Slot {target_slot} for today!")
+                    st.info("💡 Refresh to see the updated schedule. Swap resets at 02:00 server time tomorrow.")
+                    st.rerun()
+
+    elif current_swap:
+        with st.expander("🔄 Manage Today's Slot Swap"):
+            from_slot = current_swap['from_slot']
+            to_slot = current_swap['to_slot']
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**Active Swap:** Slot {from_slot} ↔ Slot {to_slot}")
+                st.caption("This swap is active until 02:00 server time tomorrow")
+
+            with col2:
+                if st.button("❌ Cancel Swap", type="secondary", use_container_width=True, key="cancel_swap"):
+                    clear_daily_slot_swap()
+                    st.success("✅ Slot swap cancelled - schedule restored to normal")
+                    st.rerun()
 
     # 7. 24-HOUR OPTIMIZATION PLAN
     st.subheader("📅 24-Hour Optimization Plan")
