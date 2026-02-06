@@ -26,6 +26,55 @@ from app.utils import (
 )
 
 
+def group_tasks_by_base_name(task_names: list) -> list:
+    """Group tasks with the same base name and combine their rarity suffixes.
+
+    Example:
+        ["Secret Mobile Squad (UR)", "Secret Mobile Squad (SSR)", "Other Task"]
+        → ["Secret Mobile Squad (UR, SSR)", "Other Task"]
+
+    Args:
+        task_names: List of task name strings
+
+    Returns:
+        List of grouped task names
+    """
+    if not task_names:
+        return []
+
+    # Dictionary to group tasks: {base_name: [suffix1, suffix2, ...]}
+    grouped = {}
+
+    for task in task_names:
+        # Check if task has a rarity suffix in parentheses at the end
+        if '(' in task and task.endswith(')'):
+            # Split at the last opening parenthesis
+            last_paren = task.rfind('(')
+            base_name = task[:last_paren].strip()
+            suffix = task[last_paren+1:-1].strip()  # Remove '(' and ')'
+
+            if base_name not in grouped:
+                grouped[base_name] = []
+            grouped[base_name].append(suffix)
+        else:
+            # Task without rarity suffix, add as-is
+            if task not in grouped:
+                grouped[task] = []
+
+    # Reconstruct grouped task names
+    result = []
+    for base_name, suffixes in grouped.items():
+        if suffixes:
+            # Combine suffixes: "Base Name (S1, S2, S3)"
+            combined_suffix = ", ".join(suffixes)
+            result.append(f"{base_name} ({combined_suffix})")
+        else:
+            # No suffix, just the base name
+            result.append(base_name)
+
+    return result
+
+
 def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
     """Render the Strategic Dashboard page.
 
@@ -534,7 +583,9 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
         # Get active daily tasks in this window
         window_end = b_srv.add(hours=4)
         active_daily_tasks = get_active_tasks_in_window(b_srv, window_end)
-        daily_tasks_str = ", ".join(active_daily_tasks) if active_daily_tasks else ""
+        # Group tasks with the same base name (e.g., "Secret Mobile Squad (UR, SSR)")
+        grouped_tasks = group_tasks_by_base_name(active_daily_tasks)
+        daily_tasks_str = ", ".join(grouped_tasks) if grouped_tasks else ""
 
         # Check if any tasks are ending in this window
         tasks_ending = has_tasks_ending_in_window(b_srv, window_end)
