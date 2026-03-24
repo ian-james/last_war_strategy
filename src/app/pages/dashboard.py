@@ -17,6 +17,9 @@ from app.utils import (
     save_secretary_event,
     get_daily_templates,
     get_daily_activation_count,
+    complete_checkbox_task,
+    is_checkbox_done_today,
+    uncheck_task_today,
     word_in_text,
     get_daily_slot_swap,
     save_daily_slot_swap,
@@ -73,6 +76,18 @@ def group_tasks_by_base_name(task_names: list) -> list:
             result.append(base_name)
 
     return result
+
+
+def _render_dashboard_checkbox_rows(tasks, now_server, key_prefix: str):
+    """Render pending checkbox tasks with a done button. Hides completed tasks."""
+    for idx, task in tasks.iterrows():
+        with st.container(border=True):
+            tcols = st.columns([0.5, 4, 1])
+            if tcols[0].button("⬜", key=f"dash_chk_{key_prefix}_{idx}", help="Mark done"):
+                complete_checkbox_task(task['name'], now_server)
+                st.rerun()
+            tcols[1].write(f"{task['icon']} **{task['name']}**  \n📂 {task['category']}")
+            tcols[2].markdown('<span style="color:#f57c00; font-weight:bold;">Pending</span>', unsafe_allow_html=True)
 
 
 def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
@@ -273,7 +288,40 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
 
     st.divider()
 
-    # 6.5 TASK TEMPLATES (Collapsible)
+    # 6.5 DAILY CHECKBOX TASKS (all pending, grouped by category, collapsible)
+    templates_df_cb = get_daily_templates()
+    checkbox_tasks_all = templates_df_cb[templates_df_cb['task_type'].fillna('timed') == 'checkbox']
+
+    # Keep reference for the plan loop below
+    anytime_checkbox_tasks = checkbox_tasks_all[
+        checkbox_tasks_all['arms_race_category'].fillna('') == ''
+    ]
+
+    pending_all = checkbox_tasks_all[
+        ~checkbox_tasks_all['name'].apply(lambda n: is_checkbox_done_today(n, now_server))
+    ] if not checkbox_tasks_all.empty else checkbox_tasks_all
+
+    if not pending_all.empty:
+        with st.expander(f"☑️ Daily Tasks ({len(pending_all)} pending)", expanded=False):
+            # Anytime tasks first
+            pending_anytime = pending_all[pending_all['arms_race_category'].fillna('') == '']
+            if not pending_anytime.empty:
+                st.markdown("**⏰ Anytime**")
+                _render_dashboard_checkbox_rows(pending_anytime, now_server, "any")
+
+            # Slot-specific tasks grouped by Arms Race category
+            for cat in pending_all['arms_race_category'].fillna('').unique():
+                if cat == '':
+                    continue
+                cat_tasks = pending_all[pending_all['arms_race_category'].fillna('') == cat]
+                if cat_tasks.empty:
+                    continue
+                st.markdown(f"**🗓️ {cat}**")
+                _render_dashboard_checkbox_rows(cat_tasks, now_server, f"cat_{cat.replace(' ', '_')}")
+
+        st.divider()
+
+    # 6.7 TASK TEMPLATES (Collapsible)
     with st.expander("📝 Task Templates", expanded=False):
         templates_df = get_daily_templates()
 
@@ -589,6 +637,21 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
         # Group tasks with the same base name (e.g., "Secret Mobile Squad (UR, SSR)")
         grouped_tasks = group_tasks_by_base_name(active_daily_tasks)
         daily_tasks_str = ", ".join(grouped_tasks) if grouped_tasks else ""
+
+        # Append checkbox tasks that are NOT yet done today
+        checkbox_parts = []
+        if ev_name != "N/A":
+            for _, cb in checkbox_tasks_all[
+                checkbox_tasks_all['arms_race_category'].fillna('') == ev_name
+            ].iterrows():
+                if not is_checkbox_done_today(cb['name'], now_server):
+                    checkbox_parts.append(f"☀️ {cb['name']}")
+        for _, cb in anytime_checkbox_tasks.iterrows():
+            if not is_checkbox_done_today(cb['name'], now_server):
+                checkbox_parts.append(f"☀️ {cb['name']}")
+        if checkbox_parts:
+            cb_str = ", ".join(checkbox_parts)
+            daily_tasks_str = f"{daily_tasks_str}, {cb_str}".strip(", ") if daily_tasks_str else cb_str
 
         # Check if any tasks are ending in this window
         tasks_ending = has_tasks_ending_in_window(b_srv, window_end)

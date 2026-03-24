@@ -12,6 +12,9 @@ from .task_manager import (
     get_active_tasks_in_window,
     has_tasks_ending_in_window,
     get_daily_activation_count,
+    complete_checkbox_task,
+    is_checkbox_done_today,
+    uncheck_task_today,
 )
 from .secretary import get_secretary_event, save_secretary_event
 from .time_utils import setup_timezone_and_time
@@ -38,6 +41,9 @@ __all__ = [
     "get_active_tasks_in_window",
     "has_tasks_ending_in_window",
     "get_daily_activation_count",
+    "complete_checkbox_task",
+    "is_checkbox_done_today",
+    "uncheck_task_today",
     # secretary
     "get_secretary_event",
     "save_secretary_event",

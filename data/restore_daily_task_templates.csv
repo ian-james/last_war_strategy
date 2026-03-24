@@ -1,5 +1,5 @@
-name	duration_n	duration_r	duration_sr	duration_ssr	duration_ur	max_daily	category	color_code	icon	is_default
-Ghost Ops	30	45	60	75	90	3	Combat	#ff5722	🎯	true
-Trucks	10	20	30	40	50	5	Resources	#4caf50	🚚	true
-Fortress Defense	20	30	45	60	75	2	Defense	#2196f3	🏰	true
-Alliance Mobilization	20	20	20	20	20	10	Social	#9c27b0	🤝	true
+name	duration_n	duration_r	duration_sr	duration_ssr	duration_ur	max_daily	category	color_code	icon	is_default	task_type	arms_race_category
+Ghost Ops	30	45	60	75	90	3	Combat	#ff5722	🎯	true	timed
+Trucks	10	20	30	40	50	5	Resources	#4caf50	🚚	true	timed
+Fortress Defense	20	30	45	60	75	2	Defense	#2196f3	🏰	true	timed
+Alliance Mobilization	20	20	20	20	20	10	Social	#9c27b0	🤝	true	timed

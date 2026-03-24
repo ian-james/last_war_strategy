@@ -45,11 +45,19 @@ def get_special_events():
 def get_daily_templates():
     """Load daily task templates from CSV"""
     if os.path.exists(DAILY_TEMPLATES_FILE):
-        return pd.read_csv(DAILY_TEMPLATES_FILE, sep="\t")
+        df = pd.read_csv(DAILY_TEMPLATES_FILE, sep="\t")
+        # Backward compatibility: fill missing columns
+        if 'task_type' not in df.columns:
+            df['task_type'] = 'timed'
+        if 'arms_race_category' not in df.columns:
+            df['arms_race_category'] = ''
+        df['task_type'] = df['task_type'].fillna('timed')
+        df['arms_race_category'] = df['arms_race_category'].fillna('')
+        return df
     return pd.DataFrame(columns=[
         "name", "duration_n", "duration_r", "duration_sr",
         "duration_ssr", "duration_ur", "max_daily", "category",
-        "color_code", "icon", "is_default"
+        "color_code", "icon", "is_default", "task_type", "arms_race_category"
     ])
 
 

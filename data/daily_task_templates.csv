@@ -1,5 +1,17 @@
-name	duration_n	duration_r	duration_sr	duration_ssr	duration_ur	max_daily	category	color_code	icon	is_default
-Ghost Ops	30	45	60	75	90	3	Combat	#ff5722	🎯	True
-Secret Mobile Squad	10	20	30	60	120	7	Resources	#41ce8d	🗡️	False
-Trucks	120	160	180	220	240	5	Resources	#3b3394	⭐	True
-Troop Promotion	150	160	170	180	180	10	Troops	#9e9e9e	🔫	false
+name	duration_n	duration_r	duration_sr	duration_ssr	duration_ur	max_daily	category	color_code	icon	is_default	task_type	arms_race_category
+Ghost Ops	30	45	60	75	90	3	Combat	#ff5722	🎯	True	timed	
+Secret Mobile Squad	10	20	30	60	120	7	Resources	#41ce8d	🗡️	False	timed	
+Trucks	120	160	180	220	240	5	Resources	#3b3394	⭐	True	timed	
+Troop Promotion	150	160	170	180	180	10	Troops	#9e9e9e	🔫	False	timed	
+Obtrain SSR Gear or Better	0	0	0	0	0	1	Gear	#9e9e9e	🗡️	False	checkbox	Unit Progression
+Gather 10K Gold	0	0	0	0	0	1	Gathering	#e6cd0a	💰	False	checkbox	
+Gather 10K Food	0	0	0	0	0	1	Gathering	#044a27	🌾	False	checkbox	
+Gather 10K Iron	0	0	0	0	0	1	Gathering	#044a27	🏛️	False	checkbox	
+Drone Data Training	0	0	0	0	0	1	Drone	#0051ff	🚚	False	checkbox	Drone Boost
+Radar Task (1)	0	0	0	0	0	1	Radar	#0051ff	💬	False	checkbox	Drone Boost
+Recruit Heroes (3)	0	0	0	0	0	1	Hero	#dbff00	🎯	False	checkbox	Hero Advancement
+Kill Zombies	0	0	0	0	0	1	World	#dbff00	💥	False	checkbox	Drone Boost
+Attack Commander	0	0	0	0	0	1	World	#dbff00	💥	False	checkbox	Drone Boost
+Train Units	0	0	0	0	0	1	Units	#9a0321	👥	False	checkbox	Unit Progression
+Build Building	0	0	0	0	0	1	Base	#03929a	🏰	False	checkbox	Base Building
+Research Tech	0	0	0	0	0	1	Research	#03929a	🔬	false	checkbox	Tech Research
