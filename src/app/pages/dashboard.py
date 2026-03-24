@@ -85,6 +85,7 @@ def _render_dashboard_checkbox_rows(tasks, now_server, key_prefix: str):
             tcols = st.columns([0.5, 4, 1])
             if tcols[0].button("⬜", key=f"dash_chk_{key_prefix}_{idx}", help="Mark done"):
                 complete_checkbox_task(task['name'], now_server)
+                st.session_state.cb_expander_open = True  # keep expander open after rerun
                 st.rerun()
             tcols[1].write(f"{task['icon']} **{task['name']}**  \n📂 {task['category']}")
             tcols[2].markdown('<span style="color:#f57c00; font-weight:bold;">Pending</span>', unsafe_allow_html=True)
@@ -255,13 +256,14 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
         </div>
     """, unsafe_allow_html=True)
 
-    # 6. ACTIVE TASKS
+    # 6. ACTIVE TASKS (timed only — exclude checkbox completions)
     st.subheader("⏳ Active Daily Tasks")
     active_df = get_active_tasks()
-    if active_df.empty:
+    timed_active_df = active_df[active_df['status'].fillna('active') != 'completed'] if not active_df.empty else active_df
+    if timed_active_df.empty:
         st.info("No active tasks. Go to Daily Tasks Manager to activate tasks.")
     else:
-        for idx, task in active_df.iterrows():
+        for idx, task in timed_active_df.iterrows():
             now_utc_check = pendulum.now('UTC')
             start_time = pendulum.parse(str(task['start_time_utc']))
             end_time = pendulum.parse(str(task['end_time_utc']))
@@ -281,8 +283,8 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
                 cols[2].write(f"⏳ **{remaining_minutes}m** remaining")
 
                 if cols[3].button("✅", key=f"complete_dash_{idx}"):
-                    active_df = active_df[active_df['task_id'] != task['task_id']]
-                    active_df.to_csv(ACTIVE_TASKS_FILE, sep="\t", index=False)
+                    updated = active_df[active_df['task_id'] != task['task_id']]
+                    updated.to_csv(ACTIVE_TASKS_FILE, sep="\t", index=False)
                     st.success(f"Task '{task['task_name']}' completed!")
                     st.rerun()
 
@@ -301,8 +303,11 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
         ~checkbox_tasks_all['name'].apply(lambda n: is_checkbox_done_today(n, now_server))
     ] if not checkbox_tasks_all.empty else checkbox_tasks_all
 
+    if 'cb_expander_open' not in st.session_state:
+        st.session_state.cb_expander_open = False
+
     if not pending_all.empty:
-        with st.expander(f"☑️ Daily Tasks ({len(pending_all)} pending)", expanded=False):
+        with st.expander(f"☑️ Daily Tasks ({len(pending_all)} pending)", expanded=st.session_state.cb_expander_open):
             # Anytime tasks first
             pending_anytime = pending_all[pending_all['arms_race_category'].fillna('') == '']
             if not pending_anytime.empty:
@@ -318,6 +323,8 @@ def render(time_ctx: dict, df: pd.DataFrame, specials_df: pd.DataFrame):
                     continue
                 st.markdown(f"**🗓️ {cat}**")
                 _render_dashboard_checkbox_rows(cat_tasks, now_server, f"cat_{cat.replace(' ', '_')}")
+    else:
+        st.session_state.cb_expander_open = False  # reset when all done
 
         st.divider()
 

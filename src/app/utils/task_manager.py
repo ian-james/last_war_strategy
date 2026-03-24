@@ -186,7 +186,7 @@ def get_daily_activation_count(task_name, now_srv):
         stored_name = str(task['task_name'])
         base_name = stored_name.split(' (')[0] if ' (' in stored_name else stored_name
 
-        if base_name == task_name:
+        if stored_name == task_name or base_name == task_name:
             task_start = pendulum.parse(str(task['start_time_utc']))
             if task_start >= daily_reset:
                 count += 1
